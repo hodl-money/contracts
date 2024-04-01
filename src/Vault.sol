@@ -243,12 +243,12 @@ contract Vault {
             yStakedTotal -= yStaked[epochId];
             yStaked[epochId] = 0;
 
+            // burn all staked y tokens at that strike
+            yMulti.burnStrike(stk.strike);
+
             // don't checkpoint again, trigger new epoch
             epochs[stk.strike] = 0;
         }
-
-        // burn all staked y tokens at that strike
-        yMulti.burnStrike(stk.strike);
 
         amount = _withdraw(amount, msg.sender);
         deposits -= amount;
