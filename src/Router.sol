@@ -279,7 +279,10 @@ contract Router {
         return profit;
     }
 
-    function _assertMaxDiffAndTakeSmaller(uint256 a, uint256 b, uint256 maxDiff) internal pure returns (uint256) {
+    function _assertMaxDiffAndTakeSmaller(uint256 a,
+                                          uint256 b,
+                                          uint256 maxDiff) internal pure returns (uint256) {
+
         (uint256 hi, uint256 lo) = (a > b) ? (a, b) : (b, a);
         assert(hi - lo < maxDiff);
         return lo;
