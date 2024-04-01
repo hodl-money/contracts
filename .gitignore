@@ -7,6 +7,7 @@ out/
 /broadcast/*/31337/
 /broadcast/*/1337/
 /broadcast/*/2337/
+/broadcast/*/80085/
 /broadcast/**/dry-run/
 
 # Docs
