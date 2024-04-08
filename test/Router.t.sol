@@ -11,7 +11,6 @@ import { Vault } from  "../src/Vault.sol";
 import { Router } from  "../src/Router.sol";
 import { StETHERC4626 } from "../src/assets/StETHERC4626.sol";
 import { HodlToken } from  "../src/single/HodlToken.sol";
-import { UniswapV3LiquidityPool } from "../src/liquidity/UniswapV3LiquidityPool.sol";
 import { ILiquidityPool } from "../src/interfaces/ILiquidityPool.sol";
 
 // Uniswap interfaces
@@ -31,7 +30,6 @@ contract RouterTest is BaseTest {
     Router public router;
     FakeOracle public oracle;
 
-    UniswapV3LiquidityPool public pool;
     IUniswapV3Pool public uniswapV3Pool;
     INonfungiblePositionManager public manager;
 
