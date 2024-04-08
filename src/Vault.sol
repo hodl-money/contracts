@@ -160,7 +160,6 @@ contract Vault {
 
         uint256 before = token.balanceOf(address(this));
         asset.wrap{value: msg.value}(0);
-        /* token.safeTransferFrom(msg.sender, address(this), amount); */
         uint256 amount = token.balanceOf(address(this)) - before;
 
         token.approve(address(asset), amount);
