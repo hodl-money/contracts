@@ -133,7 +133,7 @@ contract Router {
         return amountOut;
     }
 
-    function hodl(uint64 strike, uint256 minOut) public payable returns (uint256, uint32) {
+    function hodl(uint64 strike, uint256 minOut) public payable returns (uint256) {
         IERC20 token = IERC20(vault.deployments(strike));
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -157,10 +157,7 @@ contract Router {
 
         uint256 out = swapRouter.exactInputSingle(params);
 
-        uint32 stakeId = 0;
-        /* uint32 stakeId = vault.hodlStake(strike, out, msg.sender); */
-
-        return (out, stakeId);
+        return out;
     }
 
     function _searchLoanSize(uint64 strike,
@@ -216,42 +213,60 @@ contract Router {
 
         uint256 loan = _searchLoanSize(strike, value, 0, 1000 * value, 64);
 
-        // Amount of y tokens output
+        // amount of y tokens output
         uint256 out = value + loan;
 
         return (out, loan);
     }
 
-    function y(uint64 strike, uint256 loan, uint256 minOut) public payable returns (uint256, uint32) {
+    function y(uint64 strike, uint256 loan, uint256 minOut) public payable returns (uint256) {
         uint256 value = msg.value;
         bytes memory data = abi.encode(LOAN_Y, msg.sender, strike, value + loan, minOut);
 
+        uint256 before = vault.yMulti().balanceOf(address(this), strike);
         aavePool.flashLoanSimple(address(this), address(weth), loan, data, 0);
+        uint256 delta = vault.yMulti().balanceOf(address(this), strike) - before;
+        require(delta >= minOut, "y min out");
 
-        uint256 amount = vault.yMulti().balanceOf(address(this), strike);
-        require(amount >= minOut, "y min out");
+        vault.yMulti().safeTransferFrom(address(this), msg.sender, strike, delta, "");
 
-        uint32 stakeId = 0;
-        /* uint32 stakeId = vault.yStake(strike, amount, msg.sender); */
-
-        return (amount, stakeId);
+        return delta;
     }
 
     function previewYSell(uint64 strike, uint256 amount) public returns (uint256, uint256) {
         IERC20 token = IERC20(vault.deployments(strike));
 
-        // y sales go through 
+        // The y token sale works by buying hodl tokens and merging
+        // y + hodl into steth. we'll do a preview of both steps.
+
+        // Step 1: weth -> hodl swap.
+        // 
+        // Here, we figure out the loan size needed to buy `amount` of
+        // hodl tokens. when we have `amount` hodl tokens, we'll be able
+        // to merge them with `amount` y tokens to get steth for step 2.
+        //
+        // The quote we're obtaining is for the weth -> hodl token swap,
+        // which tells us the amount of weth we need, and therefore this
+        // quote is the loan size.
         IQuoterV2.QuoteExactOutputSingleParams memory params = IQuoterV2.QuoteExactOutputSingleParams({
             tokenIn: address(weth),
             tokenOut: address(token),
-            amount: amount,
+            amount: amount, // Amount means quantity hodl tokens output
             fee: FEE,
             sqrtPriceLimitX96: 0 });
         (uint256 loan, , , ) = quoterV2.quoteExactOutputSingle(params);
 
-        // after we redeem for steth, it will be wrapped in wsteth
-        uint256 amountWsteth = wsteth.getWstETHByStETH(amount);
+        console.log("Preview swapping weth for hodl token gives:");
+        console.log("- WETH in: ", loan);
+        console.log("- HODL out:", amount);
 
+        // Step 2: wsteth -> weth
+        // 
+        // The actual sale will merge y + hodl tokens for steth, but the
+        // flash loan was in weth. We'll need to convert steth -> weth
+        // to repay the flash loan. The remainder after loan repayment
+        // is what goes to the user.
+        uint256 amountWsteth = wsteth.getWstETHByStETH(amount);
         IQuoterV2.QuoteExactInputSingleParams memory paramsWeth = IQuoterV2.QuoteExactInputSingleParams({
             tokenIn: address(wsteth),
             tokenOut: address(weth),
@@ -259,6 +274,16 @@ contract Router {
             fee: 500,
             sqrtPriceLimitX96: 0 });
         (uint256 amountOutWeth, , , ) = quoterV2.quoteExactInputSingle(paramsWeth);
+
+        console.log("amountOutWeth      ", amountOutWeth);
+        console.log("_flashLoanFee(loan)", _flashLoanFee(loan));
+        console.log("loan               ", loan);
+
+        // It's possible the LP gives is negative profit on the sale.
+        if (amountOutWeth < _flashLoanFee(loan) + loan) {
+            console.log("insufficient liquidity for sale");
+            return (0, 0);
+        }
 
         uint256 profit = amountOutWeth - _flashLoanFee(loan) - loan;
 
@@ -280,6 +305,64 @@ contract Router {
         IERC20(address(weth)).transfer(msg.sender, profit);
 
         return profit;
+    }
+
+    function _executeOperationLoanYSell(uint256 loan,
+                                        uint256 fee,
+                                        address user,
+                                        uint64 strike,
+                                        uint256 amount) private returns (bool) {
+
+        IERC20 token = IERC20(vault.deployments(strike));
+        require(address(token) != address(0), "no deployed ERC20");
+
+        // use loaned weth to buy hodl token
+        IERC20(address(weth)).approve(address(swapRouter), 0);
+        IERC20(address(weth)).approve(address(swapRouter), amount);
+        ISwapRouter.ExactOutputSingleParams memory params  =
+            ISwapRouter.ExactOutputSingleParams({
+                tokenIn: address(weth),
+                tokenOut: address(token),
+                fee: FEE,
+                recipient: address(this),
+                deadline: block.timestamp + 1,
+                amountOut: amount,
+                amountInMaximum: loan,
+                sqrtPriceLimitX96: 0 });
+        swapRouter.exactOutputSingle(params);
+
+        // transfer the y token from user
+        vault.yMulti().safeTransferFrom(user, address(this), strike, amount, "");
+
+        // merge y + hodl for steth, wrap into wsteth
+        vault.hodlMulti().setApprovalForAll(address(vault), true);
+        vault.yMulti().setApprovalForAll(address(vault), true);
+        vault.merge(strike, amount);
+        vault.hodlMulti().setApprovalForAll(address(vault), false);
+        vault.yMulti().setApprovalForAll(address(vault), false);
+        uint256 bal = steth.balanceOf(address(this));
+        steth.approve(address(wsteth), bal);
+        wsteth.wrap(bal);
+
+        // sell wsteth for weth
+        bal = IERC20(wsteth).balanceOf(address(this));
+        wsteth.approve(address(swapRouter), bal);
+        ISwapRouter.ExactInputSingleParams memory swapParams =
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(wsteth),
+                tokenOut: address(weth),
+                fee: 500,
+                recipient: address(this),
+                deadline: block.timestamp + 1,
+                amountIn: bal,
+                amountOutMinimum: 0,  // TODO
+                sqrtPriceLimitX96: 0 });
+        swapRouter.exactInputSingle(swapParams);
+
+        // approve repayment using funds from sale, remainder will go to user
+        IERC20(address(weth)).approve(address(aavePool), loan + fee);
+
+        return true;
     }
 
     function _assertMaxDiffAndTakeSmaller(uint256 a,
@@ -314,7 +397,7 @@ contract Router {
 
     function _executeOperationLoanY(uint256 loan,
                                     uint256 fee,
-                                    address,
+                                    address user,
                                     uint64 strike,
                                     uint256 amount) private returns (bool) {
 
@@ -347,69 +430,6 @@ contract Router {
                 amountOutMinimum: loan + fee,
                 sqrtPriceLimitX96: 0 });
         swapRouter.exactInputSingle(params);
-
-
-        // approve repayment
-        IERC20(address(weth)).approve(address(aavePool), loan + fee);
-
-        return true;
-    }
-
-    function _executeOperationLoanYSell(uint256 loan,
-                                        uint256 fee,
-                                        address user,
-                                        uint64 strike,
-                                        uint256 amount) private returns (bool) {
-
-        IERC20 token = IERC20(vault.deployments(strike));
-        require(address(token) != address(0), "no deployed ERC20");
-
-        vault.yMulti().safeTransferFrom(user, address(this), strike, amount, "");
-
-        IERC20(address(weth)).approve(address(swapRouter), 0);
-        IERC20(address(weth)).approve(address(swapRouter), amount);
-
-        ISwapRouter.ExactOutputSingleParams memory params  =
-            ISwapRouter.ExactOutputSingleParams({
-                tokenIn: address(weth),
-                tokenOut: address(token),
-                fee: FEE,
-                recipient: address(this),
-                deadline: block.timestamp + 1,
-                amountOut: amount,
-                amountInMaximum: loan,
-                sqrtPriceLimitX96: 0 });
-
-        swapRouter.exactOutputSingle(params);
-
-        // merge y + hodl for steth
-        vault.hodlMulti().setApprovalForAll(address(vault), true);
-        vault.yMulti().setApprovalForAll(address(vault), true);
-
-        vault.merge(strike, amount);
-
-        vault.hodlMulti().setApprovalForAll(address(vault), false);
-        vault.yMulti().setApprovalForAll(address(vault), false);
-
-        uint256 bal = steth.balanceOf(address(this));
-        steth.approve(address(wsteth), bal);
-        wsteth.wrap(bal);
-
-        bal = IERC20(wsteth).balanceOf(address(this));
-        wsteth.approve(address(swapRouter), bal);
-
-        ISwapRouter.ExactInputSingleParams memory swapParams =
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: address(wsteth),
-                tokenOut: address(weth),
-                fee: 500,
-                recipient: address(this),
-                deadline: block.timestamp + 1,
-                amountIn: bal,
-                amountOutMinimum: 0,  // TODO
-                sqrtPriceLimitX96: 0 });
-
-        swapRouter.exactInputSingle(swapParams);
 
         // approve repayment
         IERC20(address(weth)).approve(address(aavePool), loan + fee);

@@ -59,7 +59,9 @@ contract RouterTest is BaseTest {
 
         if (address(uniswapV3Pool) == address(0)) {
             uniswapV3Pool = IUniswapV3Pool(IUniswapV3Factory(uniswapV3Factory).createPool(token0, token1, 3000));
-            IUniswapV3Pool(uniswapV3Pool).initialize(79228162514264337593543950336);
+            uint160 initPrice = 73044756656988589698425290750;
+            uint160 initPriceInv = 85935007831751276823975034880;
+            IUniswapV3Pool(uniswapV3Pool).initialize(hodl1 < weth ? initPrice : initPriceInv);
         }
 
         vm.deal(alice, 100 ether);
@@ -124,8 +126,9 @@ contract RouterTest is BaseTest {
         vm.startPrank(alice);
 
         for (uint256 i = 0; i < 5; i++) {
-            (uint256 amountY, uint256 loan) = router.previewY(strike1, 0.05 ether);
-            router.y{value: 0.05 ether}(strike1, loan, amountY - 10);
+            uint256 amount = 0.01 ether;
+            (uint256 amountY, uint256 loan) = router.previewY(strike1, amount);
+            router.y{value: amount}(strike1, loan, amountY - 10);
         }
 
         vm.stopPrank();
@@ -138,11 +141,12 @@ contract RouterTest is BaseTest {
 
         vm.deal(alice, 1 ether);
         vm.startPrank(alice);
-        (uint256 out, uint32 stakeId) = router.hodl{value: 0.2 ether}(strike1, 0);
+        uint256 out = router.hodl{value: 0.2 ether}(strike1, 0);
+        uint32 stakeId = router.vault().hodlStake(strike1, out, alice);
         vm.stopPrank();
 
-        assertEq(out, 198568070351357410);
-        assertEq(previewOut, 198568070351357410);
+        assertEq(out, 232678867527217383);
+        assertEq(previewOut, 232678867527217383);
 
         vm.expectRevert("redeem user");
         vault.redeem(out, stakeId);
@@ -158,11 +162,8 @@ contract RouterTest is BaseTest {
 
         (uint256 amountY, uint256 loan) = router.previewY(strike1, 0.2 ether);
 
-        console.log("amountY", 808707991341361773);
-        console.log("0.2 eth", 0.2 ether);
-
-        assertEq(amountY, 3306699290219694374);
-        assertEq(loan, 3106699290219694374);
+        assertEq(amountY, 610549117077607658);
+        assertEq(loan, 410549117077607658);
 
         oracle.setPrice(strike1 - 1);
 
@@ -173,36 +174,35 @@ contract RouterTest is BaseTest {
         vm.expectRevert("y min out");
         router.y{value: 0.2 ether}(strike1, loan, amountY + 1);
 
-        (uint256 outY, uint32 stake1) = router.y{value: 0.2 ether}(strike1, loan, amountY - 10);
+        uint256 outY = router.y{value: 0.2 ether}(strike1, loan, amountY - 10);
+        uint32 stake1 = router.vault().yStake(strike1, outY, alice);
         vm.stopPrank();
 
-        console.log("outY   ", outY);
-        console.log("balance", vault.yMulti().balanceOf(alice, strike1));
-        console.log("0.2 eth", 0.2 ether);
         assertClose(outY, amountY, 10);
 
         {
             ( , , , uint256 stakeY, , ) = vault.yStakes(stake1);
             assertClose(stakeY, amountY, 10);
-            console.log("stakeY ", stakeY);
         }
 
         {
             vm.deal(alice, 1 ether);
             vm.startPrank(alice);
-            (uint256 out, uint32 stakeId) = router.hodl{value: 0.3 ether}(strike1, 0);
+            uint256 out = router.hodl{value: 0.3 ether}(strike1, 0);
+            router.vault().hodlStake(strike1, out, alice);
             vm.stopPrank();
+
+            // TODO: verify something
         }
     }
 
     function testSells() public {
         initRouter();
 
-        uint256 previewOut = router.previewHodlSell(strike1, 0.2 ether);
-
         IERC20 token = IERC20(vault.deployments(strike1));
 
         {
+            uint256 previewOut = router.previewHodlSell(strike1, 0.2 ether);
             uint256 before = IERC20(address(weth)).balanceOf(alice);
 
             vm.startPrank(alice);
@@ -212,9 +212,9 @@ contract RouterTest is BaseTest {
 
             uint256 delta = IERC20(address(weth)).balanceOf(alice) - before;
 
-            assertEq(out, 198568070351357410);
-            assertEq(previewOut, 198568070351357410);
-            assertEq(delta, 198568070351357410);
+            assertEq(out, 168315976172535283);
+            assertEq(previewOut, 168315976172535283);
+            assertEq(delta, 168315976172535283);
         }
 
         {
@@ -233,9 +233,9 @@ contract RouterTest is BaseTest {
 
             uint256 delta = IERC20(address(weth)).balanceOf(alice) - before;
 
-            assertEq(previewProfit, 7164532291331987);
-            assertClose(out, 7164532291331987, 1);
-            assertClose(delta, 7164532291331987, 1);
+            assertEq(previewProfit, 30401693884080840);
+            assertClose(out, 30401693884080840, 1);
+            assertClose(delta, 30401693884080840, 1);
         }
     }
 }
