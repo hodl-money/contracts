@@ -81,6 +81,8 @@ contract YMultiToken is ERC1155, Ownable {
         strikeSeqs[strike]++;
     }
 
+    // This function is lifted from OZ's ERC1155.sol contract, modified
+    // to access balances based on seq number.
     function _update(address from,
                      address to,
                      uint256[] memory strikes,
