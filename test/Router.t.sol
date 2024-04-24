@@ -47,7 +47,7 @@ contract RouterTest is BaseTest {
         oracle.setPrice(strike1 - 1);
         address hodl1 = vault.deployERC20(strike1);
         vm.startPrank(alice);
-        vault.mint{value: 3 ether}(strike1);
+        vault.mint{value: 10 ether}(strike1);
         vm.stopPrank();
         oracle.setPrice(strike1 + 1);
 
@@ -62,14 +62,14 @@ contract RouterTest is BaseTest {
             IUniswapV3Pool(uniswapV3Pool).initialize(79228162514264337593543950336);
         }
 
-        vm.deal(alice, 10 ether);
+        vm.deal(alice, 100 ether);
 
         vm.startPrank(alice);
-        IWrappedETH(address(weth)).deposit{value: 10 ether}();
+        IWrappedETH(address(weth)).deposit{value: 100 ether}();
         vm.stopPrank();
 
-        uint256 token0Amount = 0.5 ether;
-        uint256 token1Amount = 0.5 ether;
+        uint256 token0Amount = 5 ether;
+        uint256 token1Amount = 5 ether;
 
         // Add initial liquidity
         manager = INonfungiblePositionManager(nonfungiblePositionManager);
@@ -102,6 +102,35 @@ contract RouterTest is BaseTest {
                             aavePool);
     }
 
+    function testGas_HodlBuys() public {
+        initRouter();
+
+        vm.deal(alice, 1 ether);
+        vm.startPrank(alice);
+
+        for (uint256 i = 0; i < 5; i++) {
+            router.hodl{value: 0.1 ether}(strike1, 0);
+        }
+
+        vm.stopPrank();
+    }
+
+    function testGas_YBuys() public {
+        initRouter();
+
+        oracle.setPrice(strike1 - 1);
+
+        vm.deal(alice, 1 ether);
+        vm.startPrank(alice);
+
+        for (uint256 i = 0; i < 5; i++) {
+            (uint256 amountY, uint256 loan) = router.previewY(strike1, 0.05 ether);
+            router.y{value: 0.05 ether}(strike1, loan, amountY - 10);
+        }
+
+        vm.stopPrank();
+    }
+
     function testBuys() public {
         initRouter();
 
@@ -112,8 +141,8 @@ contract RouterTest is BaseTest {
         (uint256 out, uint32 stakeId) = router.hodl{value: 0.2 ether}(strike1, 0);
         vm.stopPrank();
 
-        assertEq(out, 191381783398625730);
-        assertEq(previewOut, 191381783398625730);
+        assertEq(out, 198568070351357410);
+        assertEq(previewOut, 198568070351357410);
 
         vm.expectRevert("redeem user");
         vault.redeem(out, stakeId);
@@ -128,8 +157,12 @@ contract RouterTest is BaseTest {
         assertEq(delta, out - 1);
 
         (uint256 amountY, uint256 loan) = router.previewY(strike1, 0.2 ether);
-        assertEq(amountY, 808707991341361773);
-        assertEq(loan, 608707991341361773);
+
+        console.log("amountY", 808707991341361773);
+        console.log("0.2 eth", 0.2 ether);
+
+        assertEq(amountY, 3306699290219694374);
+        assertEq(loan, 3106699290219694374);
 
         oracle.setPrice(strike1 - 1);
 
@@ -143,10 +176,22 @@ contract RouterTest is BaseTest {
         (uint256 outY, uint32 stake1) = router.y{value: 0.2 ether}(strike1, loan, amountY - 10);
         vm.stopPrank();
 
+        console.log("outY   ", outY);
+        console.log("balance", vault.yMulti().balanceOf(alice, strike1));
+        console.log("0.2 eth", 0.2 ether);
         assertClose(outY, amountY, 10);
+
         {
             ( , , , uint256 stakeY, , ) = vault.yStakes(stake1);
             assertClose(stakeY, amountY, 10);
+            console.log("stakeY ", stakeY);
+        }
+
+        {
+            vm.deal(alice, 1 ether);
+            vm.startPrank(alice);
+            (uint256 out, uint32 stakeId) = router.hodl{value: 0.3 ether}(strike1, 0);
+            vm.stopPrank();
         }
     }
 
@@ -167,9 +212,9 @@ contract RouterTest is BaseTest {
 
             uint256 delta = IERC20(address(weth)).balanceOf(alice) - before;
 
-            assertEq(out, 191381783398625730);
-            assertEq(previewOut, 191381783398625730);
-            assertEq(delta, 191381783398625730);
+            assertEq(out, 198568070351357410);
+            assertEq(previewOut, 198568070351357410);
+            assertEq(delta, 198568070351357410);
         }
 
         {

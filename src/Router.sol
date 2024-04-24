@@ -25,18 +25,18 @@ contract Router {
     uint24 public constant FEE = 3000;
     uint256 public constant SEARCH_TOLERANCE = 1e9;
 
-    Vault public immutable vault;
-    IWrappedETH public immutable weth;
-    IERC20 public immutable steth;
-    IWstETH public immutable wsteth;
+    Vault public vault;
+    IWrappedETH public weth;
+    IERC20 public steth;
+    IWstETH public wsteth;
 
     // Uniswap
-    IUniswapV3Factory public immutable uniswapV3Factory;
-    ISwapRouter public immutable swapRouter;
-    IQuoterV2 public immutable quoterV2;
+    IUniswapV3Factory public uniswapV3Factory;
+    ISwapRouter public swapRouter;
+    IQuoterV2 public quoterV2;
 
     // Aave
-    IPool public immutable aavePool;
+    IPool public aavePool;
 
     constructor(address vault_,
                 address weth_,
@@ -157,7 +157,8 @@ contract Router {
 
         uint256 out = swapRouter.exactInputSingle(params);
 
-        uint32 stakeId = vault.hodlStake(strike, out, msg.sender);
+        uint32 stakeId = 0;
+        /* uint32 stakeId = vault.hodlStake(strike, out, msg.sender); */
 
         return (out, stakeId);
     }
@@ -229,7 +230,9 @@ contract Router {
 
         uint256 amount = vault.yMulti().balanceOf(address(this), strike);
         require(amount >= minOut, "y min out");
-        uint32 stakeId = vault.yStake(strike, amount, msg.sender);
+
+        uint32 stakeId = 0;
+        /* uint32 stakeId = vault.yStake(strike, amount, msg.sender); */
 
         return (amount, stakeId);
     }
@@ -284,7 +287,8 @@ contract Router {
                                           uint256 maxDiff) internal pure returns (uint256) {
 
         (uint256 hi, uint256 lo) = (a > b) ? (a, b) : (b, a);
-        assert(hi - lo < maxDiff);
+        uint256 diff = hi - lo;
+        require(diff < maxDiff, "diff too high");
         return lo;
     }
 
@@ -321,13 +325,12 @@ contract Router {
         weth.withdraw(loan);
 
         require(address(this).balance == amount, "expected balance == amount");
+        uint256 before = IERC20(address(token)).balanceOf(address(this));
         vault.mint{value: amount}(strike);
+        uint256 delta = IERC20(address(token)).balanceOf(address(this)) - before;
 
         // handle steth off by 1 error
-        amount = _assertMaxDiffAndTakeSmaller(
-            amount,
-            IERC20(address(token)).balanceOf(address(this)),
-            1e6);
+        amount = _assertMaxDiffAndTakeSmaller(amount, delta, 1e6);
 
         // sell hodl tokens to repay debt
         IERC20(address(token)).approve(address(swapRouter), 0);
@@ -344,6 +347,7 @@ contract Router {
                 amountOutMinimum: loan + fee,
                 sqrtPriceLimitX96: 0 });
         swapRouter.exactInputSingle(params);
+
 
         // approve repayment
         IERC20(address(weth)).approve(address(aavePool), loan + fee);
