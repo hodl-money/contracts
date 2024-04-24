@@ -111,7 +111,8 @@ contract RouterTest is BaseTest {
         vm.startPrank(alice);
 
         for (uint256 i = 0; i < 5; i++) {
-            router.hodl{value: 0.1 ether}(strike1, 0);
+            uint256 amountHodl = router.hodl{value: 0.1 ether}(strike1, 0);
+            router.vault().hodlStake(strike1, amountHodl, alice);
         }
 
         vm.stopPrank();
@@ -129,6 +130,7 @@ contract RouterTest is BaseTest {
             uint256 amount = 0.01 ether;
             (uint256 amountY, uint256 loan) = router.previewY(strike1, amount);
             router.y{value: amount}(strike1, loan, amountY - 10);
+            router.vault().yStake(strike1, amountY, alice);
         }
 
         vm.stopPrank();
