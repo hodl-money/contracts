@@ -185,11 +185,11 @@ contract RouterTest is BaseTest {
         {
             vm.deal(alice, 1 ether);
             vm.startPrank(alice);
-            uint256 out = router.hodlBuy{value: 0.3 ether}(strike1, 0);
-            router.vault().hodlStake(strike1, out, alice);
+            uint256 outHodl = router.hodlBuy{value: 0.3 ether}(strike1, 0);
+            router.vault().hodlStake(strike1, outHodl, alice);
             vm.stopPrank();
 
-            // TODO: verify something
+            assertEq(outHodl, 356111361683170649);
         }
     }
 

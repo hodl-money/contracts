@@ -6,8 +6,6 @@ import "forge-std/console.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/* import { TickMath } from "@v3-core/contracts/libraries/TickMath.sol"; */
-
 import { Vault } from  "./Vault.sol";
 
 import { IWrappedETH } from "./interfaces/IWrappedETH.sol";
@@ -17,10 +15,17 @@ import { IQuoterV2 } from "./interfaces/uniswap/IQuoterV2.sol";
 import { IUniswapV3Factory } from "./interfaces/uniswap/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "./interfaces/uniswap/IUniswapV3Pool.sol";
 import { INonfungiblePositionManager } from "../src/interfaces/uniswap/INonfungiblePositionManager.sol";
-import { TickMath } from "../src/interfaces/uniswap/TickMath.sol";
 import { IPool } from "../src/interfaces/aave/IPool.sol";
 
 
+// Router implements some common user actions with easy interfaces. These same
+// user actions could be achieved by interfacing directly with Vault, but they
+// are more easily accomplished here:
+//
+//  - Adding liquidity
+//  - Buying/selling hodl tokens
+//  - Buying/selling y tokens
+//
 contract Router {
     using SafeERC20 for IERC20;
 
@@ -29,10 +34,10 @@ contract Router {
     uint24 public constant FEE = 3000;
     uint256 public constant SEARCH_TOLERANCE = 1e9;
 
-    Vault public vault;
-    IWrappedETH public weth;
-    IERC20 public steth;
-    IWstETH public wsteth;
+    Vault public immutable vault;
+    IWrappedETH public immutable weth;
+    IERC20 public immutable steth;
+    IWstETH public immutable wsteth;
 
     // Uniswap
     IUniswapV3Factory public uniswapV3Factory;
@@ -42,6 +47,34 @@ contract Router {
 
     // Aave
     IPool public aavePool;
+
+    // Events
+    event AddLiquidity(address indexed user,
+                       uint64 indexed strike,
+                       uint256 hodlAmount,
+                       uint256 wethAmount);
+
+    event HodlBuy(address indexed user,
+                  uint64 indexed strike,
+                  uint256 amountIn,
+                  uint256 amountOut);
+
+    event HodlSell(address indexed user,
+                   uint64 indexed strike,
+                   uint256 amountIn,
+                   uint256 amountOut);
+
+    event YBuy(address indexed user,
+               uint64 indexed strike,
+               uint256 amountIn,
+               uint256 amountOut,
+               uint256 loan);
+
+    event YSell(address indexed user,
+                uint64 indexed strike,
+                uint256 amountIn,
+                uint256 amountOut,
+                uint256 loan);
 
     constructor(address vault_,
                 address weth_,
@@ -77,6 +110,8 @@ contract Router {
         return uniswapV3Factory.getPool(token0, token1, FEE);
     }
 
+    // Add liquidity respecting the fact that 1 hodl token should never trade
+    // above a price of 1 ETH.
     function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) public payable {
         IERC20 hodlToken = IERC20(vault.deployments(strike));
         require(address(hodlToken) != address(0), "no deployed ERC20");
@@ -128,6 +163,8 @@ contract Router {
         IERC20(params.token1).approve(address(manager), token1Amount);
 
         manager.mint(params);
+
+        emit AddLiquidity(msg.sender, strike, delta, wethAmount);
     }
 
     function previewHodlBuy(uint64 strike, uint256 amount) public returns (uint256) {
@@ -171,6 +208,8 @@ contract Router {
                 sqrtPriceLimitX96: 0 });
 
         uint256 out = swapRouter.exactInputSingle(params);
+
+        emit HodlBuy(msg.sender, strike, msg.value, out);
 
         return out;
     }
@@ -217,9 +256,12 @@ contract Router {
 
         uint256 out = swapRouter.exactInputSingle(params);
 
+        emit HodlBuy(msg.sender, strike, amount, out);
+
         return out;
     }
 
+    // Find the appropriate loan size for a y token purchase of `value` ETH.
     function _searchLoanSize(uint64 strike,
                              uint256 value,
                              uint256 lo,
@@ -273,7 +315,7 @@ contract Router {
 
         uint256 loan = _searchLoanSize(strike, value, 0, 1000 * value, 64);
 
-        // amount of y tokens output
+        // Amount of y tokens output
         uint256 out = value + loan;
 
         return (out, loan);
@@ -290,12 +332,14 @@ contract Router {
 
         vault.yMulti().safeTransferFrom(address(this), msg.sender, strike, delta, "");
 
+        emit YBuy(msg.sender, strike, msg.value, delta, loan);
+
         return delta;
     }
 
     function _yBuyViaLoan(uint256 loan,
                           uint256 fee,
-                          address user,
+                          address,
                           uint64 strike,
                           uint256 amount) private returns (bool) {
 
@@ -338,18 +382,18 @@ contract Router {
     function previewYSell(uint64 strike, uint256 amount) public returns (uint256, uint256) {
         IERC20 token = IERC20(vault.deployments(strike));
 
-        // The y token sale works by buying hodl tokens and merging
-        // y + hodl into steth. we'll do a preview of both steps.
+        // The y token sale works by buying hodl tokens and merging y + hodl
+        // into steth. We'll do a preview of both steps.
 
         // Step 1: weth -> hodl swap.
         // 
-        // Here, we figure out the loan size needed to buy `amount` of
-        // hodl tokens. when we have `amount` hodl tokens, we'll be able
-        // to merge them with `amount` y tokens to get steth for step 2.
+        // Here, we figure out the loan size needed to buy `amount` of hodl
+        // tokens. when we have `amount` hodl tokens, we'll be able to merge
+        // them with `amount` y tokens to get steth for step 2.
         //
-        // The quote we're obtaining is for the weth -> hodl token swap,
-        // which tells us the amount of weth we need, and therefore this
-        // quote is the loan size.
+        // The quote we're obtaining is for the weth -> hodl token swap, which
+        // tells us the amount of weth we need, and therefore this quote is the
+        // loan size.
         IQuoterV2.QuoteExactOutputSingleParams memory params = IQuoterV2.QuoteExactOutputSingleParams({
             tokenIn: address(weth),
             tokenOut: address(token),
@@ -360,10 +404,10 @@ contract Router {
 
         // Step 2: wsteth -> weth
         // 
-        // The actual sale will merge y + hodl tokens for steth, but the
-        // flash loan was in weth. We'll need to convert steth -> weth
-        // to repay the flash loan. The remainder after loan repayment
-        // is what goes to the user.
+        // The actual sale will merge y + hodl tokens for steth, but the flash
+        // loan was in weth. We'll need to convert steth -> weth to repay the
+        // flash loan. The remainder after loan repayment is what goes to the
+        // user.
         uint256 amountWsteth = wsteth.getWstETHByStETH(amount);
         IQuoterV2.QuoteExactInputSingleParams memory paramsWeth = IQuoterV2.QuoteExactInputSingleParams({
             tokenIn: address(wsteth),
@@ -388,6 +432,16 @@ contract Router {
                    uint256 amount,
                    uint256 minOut) public returns (uint256) {
 
+        // The y token sale has these steps:
+        //
+        //  1. Obtain flash loan of weth
+        //  2. Use flash loan to purchase hodl tokens
+        //  3. Merge y + hodl into steth
+        //  4. Sell steth to pay back flash loan
+        //  5. Remaining steth is profit for user
+        //
+        // The loan size required is determined via `previewYSell`.
+
         bytes memory data = abi.encode(LOAN_Y_SELL, msg.sender, strike, amount);
 
         uint256 before = IERC20(address(weth)).balanceOf(address(this));
@@ -396,6 +450,8 @@ contract Router {
         require(profit >= minOut, "y sell min out");
 
         IERC20(address(weth)).transfer(msg.sender, profit);
+
+        emit YSell(msg.sender, strike, amount, profit, loan);
 
         return profit;
     }
@@ -409,7 +465,7 @@ contract Router {
         IERC20 token = IERC20(vault.deployments(strike));
         require(address(token) != address(0), "no deployed ERC20");
 
-        // use loaned weth to buy hodl token
+        // Use loaned weth to buy hodl token
         IERC20(address(weth)).approve(address(swapRouter), 0);
         IERC20(address(weth)).approve(address(swapRouter), amount);
         ISwapRouter.ExactOutputSingleParams memory params  =
@@ -424,10 +480,10 @@ contract Router {
                 sqrtPriceLimitX96: 0 });
         swapRouter.exactOutputSingle(params);
 
-        // transfer the y token from user
+        // Transfer the y token from user
         vault.yMulti().safeTransferFrom(user, address(this), strike, amount, "");
 
-        // merge y + hodl for steth, wrap into wsteth
+        // Merge y + hodl for steth, wrap into wsteth
         vault.hodlMulti().setApprovalForAll(address(vault), true);
         vault.yMulti().setApprovalForAll(address(vault), true);
         vault.merge(strike, amount);
@@ -437,7 +493,7 @@ contract Router {
         steth.approve(address(wsteth), bal);
         wsteth.wrap(bal);
 
-        // sell wsteth for weth
+        // Sell wsteth for weth
         bal = IERC20(wsteth).balanceOf(address(this));
         wsteth.approve(address(swapRouter), bal);
         ISwapRouter.ExactInputSingleParams memory swapParams =
@@ -448,11 +504,11 @@ contract Router {
                 recipient: address(this),
                 deadline: block.timestamp + 1,
                 amountIn: bal,
-                amountOutMinimum: 0,  // TODO
+                amountOutMinimum: 0,  // TODO?
                 sqrtPriceLimitX96: 0 });
         swapRouter.exactInputSingle(swapParams);
 
-        // approve repayment using funds from sale, remainder will go to user
+        // Approve repayment using funds from sale, remainder will go to user
         IERC20(address(weth)).approve(address(aavePool), loan + fee);
 
         return true;
