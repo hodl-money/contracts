@@ -107,20 +107,25 @@ contract Vault {
                      uint32 indexed stakeId,
                      uint256 amount);
 
-    event HodlUnstaked(address indexed user,
-                       uint64 indexed strike,
-                       uint32 indexed stakeId,
-                       uint256 amount);
+    event HodlUnstake(address indexed user,
+                      uint64 indexed strike,
+                      uint32 indexed stakeId,
+                      uint256 amount);
 
     event YStaked(address indexed user,
                   uint64 indexed strike,
                   uint32 indexed stakeId,
                   uint256 amount);
 
-    event YUnstaked(address indexed user,
-                    uint64 indexed strike,
-                    uint32 indexed stakeId,
-                    uint256 amount);
+    event YUnstake(address indexed user,
+                   uint64 indexed strike,
+                   uint32 indexed stakeId,
+                   uint256 amount);
+
+    event Claim(address indexed user,
+                uint64 indexed strike,
+                uint32 indexed stakeId,
+                uint256 amount);
 
     constructor(address asset_, address oracle_) {
         require(oracle_ != address(0));
@@ -269,6 +274,9 @@ contract Vault {
         emit Redeem(msg.sender, stk.strike, stakeId, amount);
     }
 
+    // yStake takes y tokens and stakes them, which makes those tokens receive
+    // yield. Only staked y tokens receive yield. This is to enable proper yield
+    // accounting in relation to hodl token redemptions.
     function yStake(uint64 strike, uint256 amount, address user) public returns (uint32) {
         require(yMulti.balanceOf(msg.sender, strike) >= amount, "y stake balance");
         uint32 epochId = epochs[strike];
@@ -295,6 +303,9 @@ contract Vault {
         return id;
     }
 
+    // yUnstake takes a stake and returns all the y tokens to the user. For
+    // simplicity, partial unstakes are not possible. The user may unstake
+    // entirely, and then re-stake a portion of his tokens.
     function yUnstake(uint32 stakeId, address user) public {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y unstake user");
@@ -309,20 +320,23 @@ contract Vault {
 
         stk.amount = 0;
 
-        emit YUnstaked(user, stk.strike, stakeId, stk.amount);
+        emit YUnstake(user, stk.strike, stakeId, stk.amount);
     }
 
+    // Compte the yield per token of a particular stake of y tokens.
     function _stakeYpt(uint32 stakeId) internal view returns (uint256) {
         YStake storage stk = yStakes[stakeId];
         if (epochs[stk.strike] == stk.epochId) {
-            // active epoch
+            // Active epoch
             return yieldPerToken();
         } else {
-            // passed epoch
+            // Passed epoch
             return terminalYieldPerToken[stk.epochId];
         }
     }
 
+    // claimable computes the amount of underlying available to claim for a
+    // particular stake.
     function claimable(uint32 stakeId) public view returns (uint256) {
         YStake storage stk = yStakes[stakeId];
 
@@ -340,6 +354,7 @@ contract Vault {
         return c - stk.claimed;
     }
 
+    // claim transfers to the user his claimable yield.
     function claim(uint32 stakeId) public {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y claim user");
@@ -347,8 +362,12 @@ contract Vault {
         uint256 amount = _withdraw(claimable(stakeId), msg.sender);
         stk.claimed += amount;
         claimed += amount;
+
+        emit Claim(msg.sender, stk.strike, stakeId, amount);
     }
 
+    // hodlStake takes some hodl tokens, and stakes them. This make them
+    // eligible for redemption when the strike price hits.
     function hodlStake(uint64 strike, uint256 amount, address user) public returns (uint32) {
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "hodl stake balance");
 
@@ -366,6 +385,8 @@ contract Vault {
         return id;
     }
 
+    // hodlUnstake can be used to return some portion of staked tokens to the
+    // user.
     function hodlUnstake(uint32 stakeId, uint256 amount, address user) public {
         HodlStake storage stk = hodlStakes[stakeId];
         require(stk.user == msg.sender, "hodl unstake user");
@@ -375,9 +396,11 @@ contract Vault {
 
         stk.amount -= amount;
 
-        emit HodlUnstaked(user, stk.strike, stakeId, amount);
+        emit HodlUnstake(user, stk.strike, stakeId, amount);
     }
 
+    // yieldPerToken computes the global yield per token, meaning how much
+    // yield every y token has accumulated thus far.
     function yieldPerToken() public view returns (uint256) {
         uint256 deltaCumulative = totalCumulativeYield() - cumulativeYieldAcc;
         
@@ -386,16 +409,19 @@ contract Vault {
         return yieldPerTokenAcc + incr;
     }
 
+    // cumulativeYield calculates the total amount of yield a particular epoch
+    // is entitled to. This yield is split accordingly among the staked y
+    // tokens.
     function cumulativeYield(uint32 epochId) public view returns (uint256) {
         require(epochId < nextId, "invalid epoch");
 
         uint256 ypt;
         uint64 strike = infos[epochId].strike;
         if (epochs[strike] == epochId) {
-            // active epoch
+            // Active epoch
             ypt = yieldPerToken() - infos[epochId].yieldPerTokenAcc;
         } else {
-            // passed epoch
+            // Passed epoch
             ypt = terminalYieldPerToken[epochId] - infos[epochId].yieldPerTokenAcc;
         }
 
@@ -403,6 +429,8 @@ contract Vault {
                 yStaked[epochId] * ypt / PRECISION_FACTOR);
     }
 
+    // totalCumulativeYield calculates the total amount of yield for this vault,
+    // accross all epochs and strikes.
     function totalCumulativeYield() public view returns (uint256) {
         uint256 balance = asset.convertToAssets(asset.balanceOf(address(this)));
         uint256 delta = balance < deposits ? 0 : balance - deposits;
