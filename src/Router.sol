@@ -504,7 +504,7 @@ contract Router {
                 recipient: address(this),
                 deadline: block.timestamp + 1,
                 amountIn: bal,
-                amountOutMinimum: 0,  // TODO?
+                amountOutMinimum: 0, // Zero since `profit >= minOut` is checked in `ySell`
                 sqrtPriceLimitX96: 0 });
         swapRouter.exactInputSingle(swapParams);
 
