@@ -6,6 +6,8 @@ import "forge-std/console.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+/* import { TickMath } from "@v3-core/contracts/libraries/TickMath.sol"; */
+
 import { Vault } from  "./Vault.sol";
 
 import { IWrappedETH } from "./interfaces/IWrappedETH.sol";
@@ -15,6 +17,7 @@ import { IQuoterV2 } from "./interfaces/uniswap/IQuoterV2.sol";
 import { IUniswapV3Factory } from "./interfaces/uniswap/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "./interfaces/uniswap/IUniswapV3Pool.sol";
 import { INonfungiblePositionManager } from "../src/interfaces/uniswap/INonfungiblePositionManager.sol";
+import { TickMath } from "../src/interfaces/uniswap/TickMath.sol";
 import { IPool } from "../src/interfaces/aave/IPool.sol";
 
 
@@ -74,30 +77,57 @@ contract Router {
         return uniswapV3Factory.getPool(token0, token1, FEE);
     }
 
-    function addLiquidity(uint64 strike) public payable returns (uint256) {
-        console.log("addLiquidity", strike, msg.value);
-
+    function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) public payable {
         IERC20 hodlToken = IERC20(vault.deployments(strike));
-        (address token0, address token1) = address(hodlToken) < address(weth)
-            ? (address(hodlToken), address(weth))
-            : (address(weth), address(hodlToken));
+        require(address(hodlToken) != address(0), "no deployed ERC20");
 
-        /* manager = INonfungiblePositionManager(nonfungiblePositionManager); */
+        address token0;
+        address token1;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 token0Amount;
+        uint256 token1Amount;
 
-        /* INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({ */
-        /*     token0: token0, */
-        /*     token1: token1, */
-        /*     fee: 3000, */
-        /*     tickLower: -1800, */
-        /*     tickUpper: 2220, */
-        /*     amount0Desired: token0Amount, */
-        /*     amount1Desired: token1Amount, */
-        /*     amount0Min: 0, */
-        /*     amount1Min: 0, */
-        /*     recipient: alice, */
-        /*     deadline: block.timestamp + 1 }); */
+        uint256 before = hodlToken.balanceOf(address(this));
+        vault.mint{value: mintAmount}(strike);
+        uint256 delta = hodlToken.balanceOf(address(this)) - before;
 
-        return 0;
+        uint256 wethAmount = msg.value - mintAmount;
+        weth.deposit{value: wethAmount}();
+
+        if (address(hodlToken) < address(weth)) {
+            token0 = address(hodlToken);
+            token1 = address(weth);
+            tickLower = -int24(tick);
+            tickUpper = 0;
+            token0Amount = delta;
+            token1Amount = wethAmount;
+        } else {
+            token0 = address(weth);
+            token1 = address(hodlToken);
+            tickLower = 0;
+            tickUpper = int24(tick);
+            token0Amount = wethAmount;
+            token1Amount = delta;
+        }
+
+        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
+            token0: token0,
+            token1: token1,
+            fee: FEE,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            amount0Desired: token0Amount,
+            amount1Desired: token1Amount,
+            amount0Min: 0,
+            amount1Min: 0,
+            recipient: msg.sender,
+            deadline: block.timestamp + 1 });
+
+        IERC20(params.token0).approve(address(manager), token0Amount);
+        IERC20(params.token1).approve(address(manager), token1Amount);
+
+        manager.mint(params);
     }
 
     function previewHodlBuy(uint64 strike, uint256 amount) public returns (uint256) {
@@ -276,16 +306,16 @@ contract Router {
         weth.withdraw(loan);
 
         require(address(this).balance == amount, "expected balance == amount");
-        uint256 before = IERC20(address(token)).balanceOf(address(this));
+        uint256 before = token.balanceOf(address(this));
         vault.mint{value: amount}(strike);
-        uint256 delta = IERC20(address(token)).balanceOf(address(this)) - before;
+        uint256 delta = token.balanceOf(address(this)) - before;
 
         // handle steth off by 1 error
         amount = _assertMaxDiffAndTakeSmaller(amount, delta, 1e6);
 
         // sell hodl tokens to repay debt
-        IERC20(address(token)).approve(address(swapRouter), 0);
-        IERC20(address(token)).approve(address(swapRouter), amount);
+        token.approve(address(swapRouter), 0);
+        token.approve(address(swapRouter), amount);
 
         ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({

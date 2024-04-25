@@ -64,36 +64,6 @@ contract RouterTest is BaseTest {
             IUniswapV3Pool(uniswapV3Pool).initialize(hodl1 < weth ? initPrice : initPriceInv);
         }
 
-        vm.deal(alice, 100 ether);
-
-        vm.startPrank(alice);
-        IWrappedETH(address(weth)).deposit{value: 100 ether}();
-        vm.stopPrank();
-
-        uint256 token0Amount = 5 ether;
-        uint256 token1Amount = 5 ether;
-
-        // Add initial liquidity
-        manager = INonfungiblePositionManager(nonfungiblePositionManager);
-        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
-            token0: token0,
-            token1: token1,
-            fee: 3000,
-            tickLower: -1800,
-            tickUpper: 2220,
-            amount0Desired: token0Amount,
-            amount1Desired: token1Amount,
-            amount0Min: 0,
-            amount1Min: 0,
-            recipient: alice,
-            deadline: block.timestamp + 1 });
-
-        vm.startPrank(alice);
-        IERC20(params.token0).approve(address(manager), token0Amount);
-        IERC20(params.token1).approve(address(manager), token1Amount);
-        manager.mint(params);
-        vm.stopPrank();
-
         router = new Router(address(vault),
                             address(weth),
                             address(steth),
@@ -103,6 +73,10 @@ contract RouterTest is BaseTest {
                             nonfungiblePositionManager,
                             quoterV2,
                             aavePool);
+
+        oracle.setPrice(strike1 - 1);
+        router.addLiquidity{value: 10 ether}(strike1, 5 ether, 1800);
+        oracle.setPrice(strike1 + 1);
     }
 
     function testGas_HodlBuys() public {
@@ -140,10 +114,20 @@ contract RouterTest is BaseTest {
     function testAddLiquidity() public {
         initRouter();
 
+        oracle.setPrice(strike1 - 1);
+
         vm.deal(alice, 1 ether);
 
+        IERC20 hodlToken = IERC20(vault.deployments(strike1));
+        (address token0, address token1) = address(hodlToken) < weth
+            ? (address(hodlToken), weth)
+            : (weth, address(hodlToken));
+        uniswapV3Pool = IUniswapV3Pool(IUniswapV3Factory(uniswapV3Factory).getPool(token0, token1, 3000));
+
         vm.startPrank(alice);
-        router.addLiquidity{value: 1 ether}(strike1);
+        assertEq(uniswapV3Pool.liquidity(), 59065148190976308112);
+        router.addLiquidity{value: 1 ether}(strike1, 0.5 ether, 1800);
+        assertEq(uniswapV3Pool.liquidity(), 64971663010073938912);
         vm.stopPrank();
     }
 
@@ -158,8 +142,8 @@ contract RouterTest is BaseTest {
         uint32 stakeId = router.vault().hodlStake(strike1, out, alice);
         vm.stopPrank();
 
-        assertEq(out, 232678867527217383);
-        assertEq(previewOut, 232678867527217383);
+        assertEq(out, 233732374240915488);
+        assertEq(previewOut, 233732374240915488);
 
         vm.expectRevert("redeem user");
         vault.redeem(out, stakeId);
@@ -175,8 +159,8 @@ contract RouterTest is BaseTest {
 
         (uint256 amountY, uint256 loan) = router.previewYBuy(strike1, 0.2 ether);
 
-        assertEq(amountY, 610549117077607658);
-        assertEq(loan, 410549117077607658);
+        assertEq(amountY, 872715808468637986);
+        assertEq(loan, 672715808468637986);
 
         oracle.setPrice(strike1 - 1);
 
@@ -225,9 +209,9 @@ contract RouterTest is BaseTest {
 
             uint256 delta = IERC20(address(weth)).balanceOf(alice) - before;
 
-            assertEq(out, 168315976172535283);
-            assertEq(previewOut, 168315976172535283);
-            assertEq(delta, 168315976172535283);
+            assertEq(out, 168964106533830031);
+            assertEq(previewOut, 168964106533830031);
+            assertEq(delta, 168964106533830031);
         }
 
         {
@@ -246,9 +230,9 @@ contract RouterTest is BaseTest {
 
             uint256 delta = IERC20(address(weth)).balanceOf(alice) - before;
 
-            assertEq(previewProfit, 30401693884080840);
-            assertClose(out, 30401693884080840, 1);
-            assertClose(delta, 30401693884080840, 1);
+            assertEq(previewProfit, 29751294189320052);
+            assertClose(out, 29751294189320052, 1);
+            assertClose(delta, 29751294189320052, 1);
         }
     }
 }
