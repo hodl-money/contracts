@@ -143,7 +143,7 @@ contract VaultTest is BaseTest {
 
         vm.startPrank(alice);
         vm.expectRevert("cannot redeem");
-        vault.redeemStake(1 ether, stake1);
+        vault.redeem(1 ether, stake1);
         vm.stopPrank();
 
         oracle.setPrice(strike1 + 1);
@@ -151,7 +151,7 @@ contract VaultTest is BaseTest {
         assertClose(IERC20(steth).balanceOf(alice), 0 ether, 10);
 
         vm.startPrank(alice);
-        vault.redeemStake(1 ether, stake1);
+        vault.redeem(1 ether, stake1);
         vm.stopPrank();
 
         assertClose(vault.yStakedTotal(), 12 ether, 10);
@@ -185,7 +185,7 @@ contract VaultTest is BaseTest {
         assertClose(vault.yStakedTotal(), 12 ether, 10);
 
         vm.startPrank(chad);
-        vault.redeemStake(4 ether, stake3);
+        vault.redeem(4 ether, stake3);
         vm.stopPrank();
 
         assertEq(vault.yStaked(epoch1), 0);
@@ -347,30 +347,30 @@ contract VaultTest is BaseTest {
         oracle.setPrice(strike1 + 1);
 
         // redeem 1 of 2 staked
-        vault.redeemStake(1 ether, stake1);
+        vault.redeem(1 ether, stake1);
 
         // go below strike
         oracle.setPrice(strike1 - 1);
 
         // redeem 1 remaining staked
-        vault.redeemStake(1 ether, stake1);
+        vault.redeem(1 ether, stake1);
 
         // stake 1 at same strike
         uint32 stake2 = vault.hodlStake(strike1, 1 ether, alice);
 
         // the newly staked tokens cannot be redeemed
         vm.expectRevert("cannot redeem");
-        vault.redeemStake(1 ether, stake2);
+        vault.redeem(1 ether, stake2);
 
         // strike hits
         oracle.setPrice(strike1 + 1);
 
         // redeem the one we staked, now that they hit the strike
-        vault.redeemStake(1 ether, stake2);
+        vault.redeem(1 ether, stake2);
 
         // stake and redeem last 1 at that strike
         uint32 stake3 = vault.hodlStake(strike1, 1 ether - 10, alice);
-        vault.redeemStake(1 ether - 10, stake3);
+        vault.redeem(1 ether - 10, stake3);
 
         assertClose(IERC20(steth).balanceOf(alice), 4 ether, 100);
 
@@ -535,12 +535,12 @@ contract VaultTest is BaseTest {
 
         vm.startPrank(alice);
         vm.expectRevert("redeem amount");
-        vault.redeemStake(1.1 ether, stake1);
-        vault.redeemStake(1 ether, stake1);
+        vault.redeem(1.1 ether, stake1);
+        vault.redeem(1 ether, stake1);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        vault.redeemStake(1 ether, stake2);
+        vault.redeem(1 ether, stake2);
         vm.stopPrank();
 
         assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
@@ -555,49 +555,14 @@ contract VaultTest is BaseTest {
 
         vm.startPrank(alice);
         vm.expectRevert("redeem amount");
-        vault.redeemStake(1 ether, stake1);
+        vault.redeem(1 ether, stake1);
         vm.stopPrank();
 
         vm.startPrank(bob);
         vm.expectRevert("redeem amount");
-        vault.redeemStake(1 ether, stake2);
+        vault.redeem(1 ether, stake2);
         vm.stopPrank();
     }
-
-    function testRedeemTokens() public {
-        initVault();
-
-        oracle.setPrice(strike1 - 1);
-
-        // mint hodl tokens
-        vm.startPrank(alice);
-        vault.mint{value: 4 ether}(strike1);
-
-        assertEq(vault.hodlMulti().balanceOf(alice, strike1), 4 ether - 2);
-
-        vm.expectRevert("below strike");
-        vault.redeemTokens(strike1, 2 ether);
-
-        assertEq(vault.hodlMulti().balanceOf(alice, strike1), 4 ether - 2);
-        vm.stopPrank();
-
-        oracle.setPrice(strike1 + 1);
-
-        uint256 before = IERC20(steth).balanceOf(alice);
-
-        vm.startPrank(alice);
-        vault.redeemTokens(strike1, 2 ether);
-
-        vm.expectRevert("redeem tokens balance");
-        vault.redeemTokens(strike1, 10 ether);
-
-        vault.redeemTokens(strike1, 2 ether - 2);
-        vm.stopPrank();
-
-        uint256 delta = IERC20(steth).balanceOf(alice) - before;
-        assertEq(delta, 4 ether - 5);
-    }
-
 
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));

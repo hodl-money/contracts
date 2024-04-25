@@ -97,14 +97,10 @@ contract Vault {
                 uint64 indexed strike,
                 uint256 amount);
 
-    event RedeemStake(address indexed user,
-                      uint64 indexed strike,
-                      uint32 indexed stakeId,
-                      uint256 amount);
-
-    event RedeemTokens(address indexed user,
-                       uint64 indexed strike,
-                       uint256 amount);
+    event Redeem(address indexed user,
+                 uint64 indexed strike,
+                 uint32 indexed stakeId,
+                 uint256 amount);
 
     event HodlStaked(address indexed user,
                      uint64 indexed strike,
@@ -234,10 +230,10 @@ contract Vault {
         emit Merge(msg.sender, strike, amount);
     }
 
-    // redeemStake redeems a stake for the underlying tokens if the price has
+    // redeem converts a stake into the underlying tokens if the price has
     // touched the strike. The redemption can happen even if the price later
     // dips below.
-    function redeemStake(uint256 amount, uint32 stakeId) external {
+    function redeem(uint256 amount, uint32 stakeId) external {
         HodlStake storage stk = hodlStakes[stakeId];
 
         require(stk.user == msg.sender, "redeem user");
@@ -270,22 +266,7 @@ contract Vault {
         amount = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit RedeemStake(msg.sender, stk.strike, stakeId, amount);
-    }
-
-    // redeemTokens redeems unstaked tokens if the price is currently above the
-    // strike. Unlike redeemStake, the redemption cannot happen if the price
-    // later dips below.
-    function redeemTokens(uint64 strike, uint256 amount) external {
-        require(oracle.price(0) >= strike, "below strike");
-        require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
-
-        hodlMulti.burn(msg.sender, strike, amount);
-
-        amount = _withdraw(amount, msg.sender);
-        deposits -= amount;
-
-        emit RedeemTokens(msg.sender, strike, amount);
+        emit Redeem(msg.sender, stk.strike, stakeId, amount);
     }
 
     function yStake(uint64 strike, uint256 amount, address user) public returns (uint32) {
