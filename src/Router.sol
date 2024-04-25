@@ -102,7 +102,7 @@ contract Router {
     }
 
     function pool(uint64 strike) public view returns (address) {
-        IERC20 hodlToken = IERC20(vault.deployments(strike));
+        IERC20 hodlToken = vault.deployments(strike);
         (address token0, address token1) = address(hodlToken) < address(weth)
             ? (address(hodlToken), address(weth))
             : (address(weth), address(hodlToken));
@@ -113,7 +113,7 @@ contract Router {
     // Add liquidity respecting the fact that 1 hodl token should never trade
     // above a price of 1 ETH.
     function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) public payable {
-        IERC20 hodlToken = IERC20(vault.deployments(strike));
+        IERC20 hodlToken = vault.deployments(strike);
         require(address(hodlToken) != address(0), "no deployed ERC20");
 
         address token0;
@@ -168,7 +168,7 @@ contract Router {
     }
 
     function previewHodlBuy(uint64 strike, uint256 amount) public returns (uint256) {
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
         require(uniPool != address(0), "no uni pool");
@@ -186,7 +186,7 @@ contract Router {
     }
 
     function hodlBuy(uint64 strike, uint256 minOut) public payable returns (uint256) {
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
         require(uniPool != address(0), "no uni pool");
@@ -215,7 +215,7 @@ contract Router {
     }
 
     function previewHodlSell(uint64 strike, uint256 amount) public returns (uint256) {
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
         require(uniPool != address(0), "no uni pool");
@@ -233,7 +233,7 @@ contract Router {
     }
 
     function hodlSell(uint64 strike, uint256 amount, uint256 minOut) public payable returns (uint256) {
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
         require(uniPool != address(0), "no uni pool");
@@ -272,7 +272,7 @@ contract Router {
             return 0;
         }
 
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         uint256 loan = (hi + lo) / 2;
         uint256 fee = _flashLoanFee(loan);
         uint256 debt = loan + fee;
@@ -308,7 +308,7 @@ contract Router {
     }
 
     function previewYBuy(uint64 strike, uint256 value) public returns (uint256, uint256) {
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
         require(uniPool != address(0), "no uni pool");
@@ -343,7 +343,7 @@ contract Router {
                           uint64 strike,
                           uint256 amount) private returns (bool) {
 
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
 
         // mint hodl + y tokens
@@ -380,7 +380,7 @@ contract Router {
     }
 
     function previewYSell(uint64 strike, uint256 amount) public returns (uint256, uint256) {
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
 
         // The y token sale works by buying hodl tokens and merging y + hodl
         // into steth. We'll do a preview of both steps.
@@ -462,7 +462,7 @@ contract Router {
                            uint64 strike,
                            uint256 amount) private returns (bool) {
 
-        IERC20 token = IERC20(vault.deployments(strike));
+        IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
 
         // Use loaned weth to buy hodl token

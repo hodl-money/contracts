@@ -118,7 +118,7 @@ contract RouterTest is BaseTest {
 
         vm.deal(alice, 1 ether);
 
-        IERC20 hodlToken = IERC20(vault.deployments(strike1));
+        IERC20 hodlToken = vault.deployments(strike1);
         (address token0, address token1) = address(hodlToken) < weth
             ? (address(hodlToken), weth)
             : (weth, address(hodlToken));
@@ -196,7 +196,7 @@ contract RouterTest is BaseTest {
     function testSells() public {
         initRouter();
 
-        IERC20 token = IERC20(vault.deployments(strike1));
+        IERC20 token = vault.deployments(strike1);
 
         {
             uint256 previewOut = router.previewHodlSell(strike1, 0.2 ether);

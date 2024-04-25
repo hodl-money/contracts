@@ -28,7 +28,7 @@ contract Vault {
     YMultiToken public immutable yMulti;
 
     // keep track of deployed erc20 hodl tokens
-    mapping (uint64 strike => address token) public deployments;
+    mapping (uint64 strike => IERC20 token) public deployments;
 
     // track staked hodl tokens, which are eligible for redemption
     struct HodlStake {
@@ -126,14 +126,14 @@ contract Vault {
     }
 
     function deployERC20(uint64 strike) public returns (address) {
-        if (deployments[strike] != address(0)) {
-            return deployments[strike];
+        if (address(deployments[strike]) != address(0)) {
+            return address(deployments[strike]);
         }
 
         HodlToken hodl = new HodlToken(address(hodlMulti), strike);
         hodlMulti.authorize(address(hodl));
 
-        deployments[strike] = address(hodl);
+        deployments[strike] = hodl;
 
         return address(hodl);
     }
