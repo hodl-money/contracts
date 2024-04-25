@@ -8,6 +8,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { HodlMultiToken } from "../multi/HodlMultiToken.sol";
 
+// HodlToken is an ERC20 wrapper on top of the ERC1155 HodlMultiToken. It
+// represents a token at a particular strike, and can be composed inside defi
+// applications that expect ERC20 tokens. For example, it can be used to create
+// a swap liquidity pool in protocols that operate on ERC20 tokens.
 contract HodlToken is IERC20 {
 
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -49,6 +53,8 @@ contract HodlToken is IERC20 {
     function transfer(address to, uint256 amount) public returns (bool) {
         hodlMulti.safeTransferFrom(msg.sender, to, strike, amount, "");
 
+        emit Transfer(msg.sender, to, amount);
+
         return true;
     }
 
@@ -60,14 +66,24 @@ contract HodlToken is IERC20 {
         require(spender != address(0), "approve zero address");
         _allowances[msg.sender][spender] = amount;
 
+        emit Approval(msg.sender, spender, amount);
+
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
         require(from == msg.sender || _allowances[from][msg.sender] >= amount, "not authorized");
-        _allowances[from][msg.sender] -= amount;
+
+        // Decrement the allowance if needed
+        if (from != msg.sender &&
+            _allowances[from][msg.sender] != type(uint256).max) {
+
+            _allowances[from][msg.sender] -= amount;
+        }
 
         hodlMulti.safeTransferFrom(from, to, strike, amount, "");
+
+        emit Transfer(from, to, amount);
 
         return true;
     }

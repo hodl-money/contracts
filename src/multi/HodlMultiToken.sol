@@ -16,6 +16,17 @@ contract HodlMultiToken is ERC1155, Ownable {
     mapping(uint256 => uint256) public totalSupply;
     mapping(address => bool) public authorized;
 
+    // Events
+    event Authorize(address indexed user);
+
+    event Mint(address indexed user,
+               uint256 indexed strike,
+               uint256 amount);
+
+    event Burn(address indexed user,
+               uint256 indexed strike,
+               uint256 amount);
+
     constructor(string memory uri_) ERC1155(uri_) Ownable(msg.sender) { }
 
     function name(uint256 strike) public view virtual returns (string memory) {
@@ -26,8 +37,12 @@ contract HodlMultiToken is ERC1155, Ownable {
         return string(abi.encodePacked("plETH @ ", Strings.toString(strike / 1e8)));
     }
 
+    // authorize enables another contract to transfer tokens between accounts.
+    // This is for use by deployed ERC20 tokens. See src/single/HodlToken.sol.
     function authorize(address operator) public onlyOwner {
         authorized[operator] = true;
+
+        emit Authorize(operator);
     }
 
     function safeTransferFrom(address from,
@@ -53,10 +68,14 @@ contract HodlMultiToken is ERC1155, Ownable {
     function mint(address user, uint256 strike, uint256 amount) public onlyOwner {
         totalSupply[strike] += amount;
         _mint(user, strike, amount, "");
+
+        emit Mint(user, strike, amount);
     }
 
     function burn(address user, uint256 strike, uint256 amount) public onlyOwner {
         totalSupply[strike] -= amount;
         _burn(user, strike, amount);
+
+        emit Burn(user, strike, amount);
     }
 }

@@ -23,20 +23,17 @@ contract YMultiToken is ERC1155, Ownable {
 
     mapping (uint256 => uint256) public totalSupply;
 
-    event Staked(address indexed user,
-                 uint256 indexed id,
-                 uint256 timestamp,
-                 uint256 strike,
-                 uint256 amount);
+    // Events
+    event Mint(address indexed user,
+               uint256 indexed strike,
+               uint256 amount);
 
-    event Unstaked(address indexed user,
-                   uint256 indexed id,
-                   uint256 timestamp,
-                   uint256 strike,
-                   uint256 amount);
+    event Burn(address indexed user,
+               uint256 indexed strike,
+               uint256 amount);
 
-    event BurnedStake(uint256 indexed id,
-                      uint256 amount);
+    event BurnStrike(uint256 indexed strike,
+                     uint256 seq);
 
     constructor(string memory uri_, address vault_)
         Ownable(msg.sender)
@@ -60,6 +57,8 @@ contract YMultiToken is ERC1155, Ownable {
         amounts[0] = amount;
         _update(address(0), user, strikes, amounts);
         totalSupply[strike] += amount;
+
+        emit Mint(user, strike, amount);
     }
 
     function burn(address user, uint256 strike, uint256 amount) public onlyOwner {
@@ -69,6 +68,8 @@ contract YMultiToken is ERC1155, Ownable {
         amounts[0] = amount;
         _update(user, address(0), strikes, amounts);
         totalSupply[strike] -= amount;
+
+        emit Burn(user, strike, amount);
     }
 
     function balanceOf(address user, uint256 strike) public override view returns (uint256) {
@@ -79,6 +80,8 @@ contract YMultiToken is ERC1155, Ownable {
     function burnStrike(uint256 strike) public {
         require(msg.sender == address(vault), "only vault");
         strikeSeqs[strike]++;
+
+        emit BurnStrike(strike, strikeSeqs[strike] - 1);
     }
 
     // This function is lifted from OZ's ERC1155.sol contract, modified
