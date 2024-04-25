@@ -82,6 +82,9 @@ contract Vault {
     mapping (uint64 staked => uint32 epochId) public epochs;
 
     // Events
+    event DeployERC20(uint64 indexed strike,
+                      address token);
+
     event Triggered(uint64 indexed strike,
                     uint32 indexed epoch,
                     uint256 timestamp);
@@ -90,17 +93,25 @@ contract Vault {
                uint256 indexed strike,
                uint256 amount);
 
+    event Merge(address indexed user,
+                uint64 indexed strike,
+                uint256 amount);
+
+    event RedeemStake(address indexed user,
+                      uint64 indexed strike,
+                      uint32 indexed stakeId,
+                      uint256 amount);
+
+    event RedeemTokens(address indexed user,
+                       uint64 indexed strike,
+                       uint256 amount);
+
     event HodlStaked(address indexed user,
                      uint64 indexed strike,
                      uint32 indexed stakeId,
                      uint256 amount);
 
     event HodlUnstaked(address indexed user,
-                       uint64 indexed strike,
-                       uint32 indexed stakeId,
-                       uint256 amount);
-
-    event HodlRedeemed(address indexed user,
                        uint64 indexed strike,
                        uint32 indexed stakeId,
                        uint256 amount);
@@ -135,6 +146,8 @@ contract Vault {
 
         deployments[strike] = hodl;
 
+        emit DeployERC20(strike, address(hodl));
+
         return address(hodl);
     }
 
@@ -166,13 +179,13 @@ contract Vault {
         asset.deposit(amount, address(this));
         deposits += amount;
 
-        // create the epoch if needed
+        // Create the epoch if needed
         if (epochs[strike] == 0) {
             infos[nextId].strike = strike;
             epochs[strike] = nextId++;
         }
 
-        // mint hodl + y
+        // Mint hodl + y
         hodlMulti.mint(msg.sender, strike, amount);
         yMulti.mint(msg.sender, strike, amount);
 
@@ -206,6 +219,7 @@ contract Vault {
         return amount;
     }
 
+    // merge combines equal parts y + hodl tokens into the underlying asset.
     function merge(uint64 strike, uint256 amount) external {
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount);
         require(yMulti.balanceOf(msg.sender, strike) >= amount);
@@ -216,43 +230,62 @@ contract Vault {
         amount = _withdraw(amount, msg.sender);
 
         deposits -= amount;
+
+        emit Merge(msg.sender, strike, amount);
     }
 
-    function redeem(uint256 amount, uint32 stakeId) external {
-        // Redeem via staked hodl token
+    // redeemStake redeems a stake for the underlying tokens if the price has
+    // touched the strike. The redemption can happen even if the price later
+    // dips below.
+    function redeemStake(uint256 amount, uint32 stakeId) external {
         HodlStake storage stk = hodlStakes[stakeId];
 
         require(stk.user == msg.sender, "redeem user");
         require(stk.amount >= amount, "redeem amount");
         require(canRedeem(stakeId), "cannot redeem");
 
-        // burn the specified hodl stake
+        // Burn the specified hodl stake
         stk.amount -= amount;
 
         uint32 epochId = epochs[stk.strike];
 
         if (epochId != 0) {
-            // checkpoint this strike, to prevent yield accumulation
+            // Checkpoint this strike, to prevent yield accumulation
             _checkpoint(epochId);
 
-            // record the ypt at redemption time
+            // Record the ypt at redemption time
             terminalYieldPerToken[epochId] = yieldPerToken();
 
-            // update accounting for staked y tokens
+            // Update accounting for staked y tokens
             yStakedTotal -= yStaked[epochId];
             yStaked[epochId] = 0;
 
-            // burn all staked y tokens at that strike
+            // Burn all staked y tokens at that strike
             yMulti.burnStrike(stk.strike);
 
-            // don't checkpoint again, trigger new epoch
+            // Don't checkpoint again, trigger new epoch
             epochs[stk.strike] = 0;
         }
 
         amount = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit HodlRedeemed(msg.sender, stk.strike, stakeId, amount);
+        emit RedeemStake(msg.sender, stk.strike, stakeId, amount);
+    }
+
+    // redeemTokens redeems unstaked tokens if the price is currently above the
+    // strike. Unlike redeemStake, the redemption cannot happen if the price
+    // later dips below.
+    function redeemTokens(uint64 strike, uint256 amount) external {
+        require(oracle.price(0) >= strike, "below strike");
+        require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
+
+        hodlMulti.burn(msg.sender, strike, amount);
+
+        amount = _withdraw(amount, msg.sender);
+        deposits -= amount;
+
+        emit RedeemTokens(msg.sender, strike, amount);
     }
 
     function yStake(uint64 strike, uint256 amount, address user) public returns (uint32) {
