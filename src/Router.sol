@@ -14,6 +14,7 @@ import { ISwapRouter } from "./interfaces/uniswap/ISwapRouter.sol";
 import { IQuoterV2 } from "./interfaces/uniswap/IQuoterV2.sol";
 import { IUniswapV3Factory } from "./interfaces/uniswap/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "./interfaces/uniswap/IUniswapV3Pool.sol";
+import { INonfungiblePositionManager } from "../src/interfaces/uniswap/INonfungiblePositionManager.sol";
 import { IPool } from "../src/interfaces/aave/IPool.sol";
 
 
@@ -34,6 +35,7 @@ contract Router {
     IUniswapV3Factory public uniswapV3Factory;
     ISwapRouter public swapRouter;
     IQuoterV2 public quoterV2;
+    INonfungiblePositionManager public manager;
 
     // Aave
     IPool public aavePool;
@@ -44,6 +46,7 @@ contract Router {
                 address wsteth_,
                 address uniswapV3Factory_,
                 address swapRouter_,
+                address manager_,
                 address quoterV2_,
                 address aavePool_) {
 
@@ -53,6 +56,7 @@ contract Router {
         wsteth = IWstETH(wsteth_);
         uniswapV3Factory = IUniswapV3Factory(uniswapV3Factory_);
         swapRouter = ISwapRouter(swapRouter_);
+        manager = INonfungiblePositionManager(manager_);
         quoterV2 = IQuoterV2(quoterV2_);
         aavePool = IPool(aavePool_);
     }
@@ -68,6 +72,32 @@ contract Router {
             : (address(weth), address(hodlToken));
 
         return uniswapV3Factory.getPool(token0, token1, FEE);
+    }
+
+    function addLiquidity(uint64 strike) public payable returns (uint256) {
+        console.log("addLiquidity", strike, msg.value);
+
+        IERC20 hodlToken = IERC20(vault.deployments(strike));
+        (address token0, address token1) = address(hodlToken) < address(weth)
+            ? (address(hodlToken), address(weth))
+            : (address(weth), address(hodlToken));
+
+        /* manager = INonfungiblePositionManager(nonfungiblePositionManager); */
+
+        /* INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({ */
+        /*     token0: token0, */
+        /*     token1: token1, */
+        /*     fee: 3000, */
+        /*     tickLower: -1800, */
+        /*     tickUpper: 2220, */
+        /*     amount0Desired: token0Amount, */
+        /*     amount1Desired: token1Amount, */
+        /*     amount0Min: 0, */
+        /*     amount1Min: 0, */
+        /*     recipient: alice, */
+        /*     deadline: block.timestamp + 1 }); */
+
+        return 0;
     }
 
     function previewHodlBuy(uint64 strike, uint256 amount) public returns (uint256) {
@@ -413,6 +443,8 @@ contract Router {
                               uint256 fee,
                               address,
                               bytes calldata params) external payable returns (bool) {
+
+        require(msg.sender == address(aavePool), "only aave");
 
         (uint8 op,
          address user,

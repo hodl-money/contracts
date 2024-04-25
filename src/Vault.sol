@@ -256,8 +256,6 @@ contract Vault {
     }
 
     function yStake(uint64 strike, uint256 amount, address user) public returns (uint32) {
-        console.log("y stake, have balance:", yMulti.balanceOf(msg.sender, strike));
-        console.log("amount:", amount);
         require(yMulti.balanceOf(msg.sender, strike) >= amount, "y stake balance");
         uint32 epochId = epochs[strike];
 

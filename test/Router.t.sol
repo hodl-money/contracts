@@ -100,6 +100,7 @@ contract RouterTest is BaseTest {
                             address(wsteth),
                             uniswapV3Factory,
                             swapRouter,
+                            nonfungiblePositionManager,
                             quoterV2,
                             aavePool);
     }
@@ -133,6 +134,16 @@ contract RouterTest is BaseTest {
             router.vault().yStake(strike1, amountY, alice);
         }
 
+        vm.stopPrank();
+    }
+
+    function testAddLiquidity() public {
+        initRouter();
+
+        vm.deal(alice, 1 ether);
+
+        vm.startPrank(alice);
+        router.addLiquidity{value: 1 ether}(strike1);
         vm.stopPrank();
     }
 

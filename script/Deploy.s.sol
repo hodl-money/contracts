@@ -64,6 +64,7 @@ contract DeployScript is BaseScript {
                                    address(wsteth),
                                    mainnet_UniswapV3Factory,
                                    mainnet_SwapRouter,
+                                   mainnet_NonfungiblePositionManager,
                                    mainnet_QuoterV2,
                                    mainnet_aavePool);
 
