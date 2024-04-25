@@ -111,7 +111,7 @@ contract RouterTest is BaseTest {
         vm.startPrank(alice);
 
         for (uint256 i = 0; i < 5; i++) {
-            uint256 amountHodl = router.hodl{value: 0.1 ether}(strike1, 0);
+            uint256 amountHodl = router.hodlBuy{value: 0.1 ether}(strike1, 0);
             router.vault().hodlStake(strike1, amountHodl, alice);
         }
 
@@ -128,8 +128,8 @@ contract RouterTest is BaseTest {
 
         for (uint256 i = 0; i < 5; i++) {
             uint256 amount = 0.01 ether;
-            (uint256 amountY, uint256 loan) = router.previewY(strike1, amount);
-            router.y{value: amount}(strike1, loan, amountY - 10);
+            (uint256 amountY, uint256 loan) = router.previewYBuy(strike1, amount);
+            router.yBuy{value: amount}(strike1, loan, amountY - 10);
             router.vault().yStake(strike1, amountY, alice);
         }
 
@@ -139,11 +139,11 @@ contract RouterTest is BaseTest {
     function testBuys() public {
         initRouter();
 
-        uint256 previewOut = router.previewHodl(strike1, 0.2 ether);
+        uint256 previewOut = router.previewHodlBuy(strike1, 0.2 ether);
 
         vm.deal(alice, 1 ether);
         vm.startPrank(alice);
-        uint256 out = router.hodl{value: 0.2 ether}(strike1, 0);
+        uint256 out = router.hodlBuy{value: 0.2 ether}(strike1, 0);
         uint32 stakeId = router.vault().hodlStake(strike1, out, alice);
         vm.stopPrank();
 
@@ -162,7 +162,7 @@ contract RouterTest is BaseTest {
         uint256 delta = IERC20(steth).balanceOf(alice) - before;
         assertEq(delta, out - 1);
 
-        (uint256 amountY, uint256 loan) = router.previewY(strike1, 0.2 ether);
+        (uint256 amountY, uint256 loan) = router.previewYBuy(strike1, 0.2 ether);
 
         assertEq(amountY, 610549117077607658);
         assertEq(loan, 410549117077607658);
@@ -174,9 +174,9 @@ contract RouterTest is BaseTest {
         vm.startPrank(alice);
 
         vm.expectRevert("y min out");
-        router.y{value: 0.2 ether}(strike1, loan, amountY + 1);
+        router.yBuy{value: 0.2 ether}(strike1, loan, amountY + 1);
 
-        uint256 outY = router.y{value: 0.2 ether}(strike1, loan, amountY - 10);
+        uint256 outY = router.yBuy{value: 0.2 ether}(strike1, loan, amountY - 10);
         uint32 stake1 = router.vault().yStake(strike1, outY, alice);
         vm.stopPrank();
 
@@ -190,7 +190,7 @@ contract RouterTest is BaseTest {
         {
             vm.deal(alice, 1 ether);
             vm.startPrank(alice);
-            uint256 out = router.hodl{value: 0.3 ether}(strike1, 0);
+            uint256 out = router.hodlBuy{value: 0.3 ether}(strike1, 0);
             router.vault().hodlStake(strike1, out, alice);
             vm.stopPrank();
 
