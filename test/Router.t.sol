@@ -46,6 +46,7 @@ contract RouterTest is BaseTest {
         StETHERC4626 asset = new StETHERC4626(steth);
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(asset), address(source), address(oracle));
+        source.transferOwnership(address(vault));
         oracle.setPrice(strike1 - 1);
         address hodl1 = vault.deployERC20(strike1);
         vm.startPrank(alice);

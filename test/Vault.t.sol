@@ -37,6 +37,7 @@ contract VaultTest is BaseTest {
         StETHERC4626 asset = new StETHERC4626(steth);
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(asset), address(source), address(oracle));
+        source.transferOwnership(address(vault));
     }
 
     function testVault() public {
@@ -274,6 +275,7 @@ contract VaultTest is BaseTest {
         StETHERC4626 asset = new StETHERC4626(steth);
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(asset), address(source), address(chainlink));
+        source.transferOwnership(address(vault));
 
         // Verify price at the forked block
         uint64 price = 172509460550;
@@ -589,7 +591,8 @@ contract VaultTest is BaseTest {
 
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
-        IERC20(steth).transfer(address(vault.asset()), amount);
+        /* IERC20(steth).transfer(address(vault.asset()), amount); */
+        IERC20(steth).transfer(address(vault.source()), amount);
     }
 
     function claimAndVerify(uint32 stakeId, address user, uint256 amount, bool dumpCoins) internal {
