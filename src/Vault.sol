@@ -170,14 +170,7 @@ contract Vault is ReentrancyGuard, Pausable {
     function mint(uint64 strike) external nonReentrant whenNotPaused payable {
         require(oracle.price(0) <= strike, "strike too low");
 
-        IERC20 token = IERC20(source.asset());
-
-        uint256 before = token.balanceOf(address(this));
-        source.wrap{value: msg.value}(0);
-        uint256 amount = token.balanceOf(address(this)) - before;
-
-        token.approve(address(source), amount);
-        source.deposit(amount);
+        uint256 amount = source.deposit{value: msg.value}();
         deposits += amount;
 
         // Create the epoch if needed
@@ -392,7 +385,7 @@ contract Vault is ReentrancyGuard, Pausable {
     function hodlUnstake(uint32 stakeId, uint256 amount, address user) public nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
         require(stk.user == msg.sender, "hodl unstake user");
-        require(stk.amount >= amount, "hodl unstake zero");
+        require(stk.amount >= amount, "hodl unstake amount");
 
         hodlMulti.mint(user, stk.strike, amount);
 

@@ -19,19 +19,15 @@ contract StETHYieldSource is IYieldSource, Ownable {
         asset = asset_;
     }
 
-    function wrap(uint256) external payable onlyOwner {
-        uint256 before = IERC20(asset).balanceOf(address(this));
-        IStEth(asset).submit{value: msg.value}(address(0));
-        uint256 delta = IERC20(asset).balanceOf(address(this)) - before;
-        IERC20(asset).transfer(msg.sender, delta);
-    }
-
     function balance() external view returns (uint256) {
         return IERC20(asset).balanceOf(address(this));
     }
 
-    function deposit(uint256 amount) external onlyOwner {
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+    function deposit() external onlyOwner payable returns (uint256) {
+        uint256 before = IERC20(asset).balanceOf(address(this));
+        IStEth(asset).submit{value: msg.value}(address(0));
+        uint256 delta = IERC20(asset).balanceOf(address(this)) - before;
+        return delta;
     }
 
     function withdraw(uint256 amount, address receiver) external onlyOwner {

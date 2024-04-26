@@ -7,8 +7,7 @@ interface IYieldSource {
 
     function asset() external view returns (address);
     function balance() external view returns (uint256);
-    function wrap(uint256 amount) external payable;
-    function deposit(uint256 amount) external;
+    function deposit() external payable returns (uint256);
     function withdraw(uint256 amount, address receiver) external;
 
 }

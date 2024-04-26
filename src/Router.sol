@@ -194,7 +194,6 @@ contract Router is ReentrancyGuard {
 
         weth.deposit{value: msg.value}();
 
-        IERC20(address(weth)).approve(address(address(swapRouter)), 0);
         IERC20(address(weth)).approve(address(address(swapRouter)), msg.value);
 
         ISwapRouter.ExactInputSingleParams memory params =
@@ -241,7 +240,6 @@ contract Router is ReentrancyGuard {
 
         token.transferFrom(msg.sender, address(this), amount);
 
-        token.approve(address(address(swapRouter)), 0);
         token.approve(address(address(swapRouter)), amount);
 
         ISwapRouter.ExactInputSingleParams memory params =
@@ -359,7 +357,6 @@ contract Router is ReentrancyGuard {
         amount = _assertMaxDiffAndTakeSmaller(amount, delta, 1e6);
 
         // sell hodl tokens to repay debt
-        token.approve(address(swapRouter), 0);
         token.approve(address(swapRouter), amount);
 
         ISwapRouter.ExactInputSingleParams memory params =
@@ -467,7 +464,6 @@ contract Router is ReentrancyGuard {
         require(address(token) != address(0), "no deployed ERC20");
 
         // Use loaned weth to buy hodl token
-        IERC20(address(weth)).approve(address(swapRouter), 0);
         IERC20(address(weth)).approve(address(swapRouter), amount);
         ISwapRouter.ExactOutputSingleParams memory params  =
             ISwapRouter.ExactOutputSingleParams({
@@ -485,11 +481,7 @@ contract Router is ReentrancyGuard {
         vault.yMulti().safeTransferFrom(user, address(this), strike, amount, "");
 
         // Merge y + hodl for steth, wrap into wsteth
-        vault.hodlMulti().setApprovalForAll(address(vault), true);
-        vault.yMulti().setApprovalForAll(address(vault), true);
         vault.merge(strike, amount);
-        vault.hodlMulti().setApprovalForAll(address(vault), false);
-        vault.yMulti().setApprovalForAll(address(vault), false);
         uint256 bal = steth.balanceOf(address(this));
         steth.approve(address(wsteth), bal);
         wsteth.wrap(bal);
