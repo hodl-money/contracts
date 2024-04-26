@@ -171,6 +171,10 @@ contract Vault is ReentrancyGuard, Pausable {
                  uint32 indexed stakeId,
                  uint256 amount);
 
+    event RedeemTokens(address indexed user,
+                       uint64 indexed strike,
+                       uint256 amount);
+
     event HodlStaked(address indexed user,
                      uint64 indexed strike,
                      uint32 indexed stakeId,
@@ -308,30 +312,54 @@ contract Vault is ReentrancyGuard, Pausable {
         // Burn the specified hodl stake
         stk.amount -= amount;
 
-        uint32 epochId = epochs[stk.strike];
-
-        if (epochId != 0) {
-            // Checkpoint this strike, to prevent yield accumulation
-            _checkpoint(epochId);
-
-            // Record the ypt at redemption time
-            terminalYieldPerToken[epochId] = yieldPerToken();
-
-            // Update accounting for staked y tokens
-            yStakedTotal -= yStaked[epochId];
-            yStaked[epochId] = 0;
-
-            // Burn all staked y tokens at that strike
-            yMulti.burnStrike(stk.strike);
-
-            // Don't checkpoint again, trigger new epoch
-            epochs[stk.strike] = 0;
-        }
+        // Close out before updating `deposits`
+        _closeOutEpoch(stk.strike);
 
         amount = _withdraw(amount, msg.sender);
         deposits -= amount;
 
         emit Redeem(msg.sender, stk.strike, stakeId, amount);
+    }
+
+    // redeemTokens redeems unstaked tokens if the price is currently above the
+    // strike. Unlike redeemStake, the redemption cannot happen if the price
+    // later dips below.
+    function redeemTokens(uint64 strike, uint256 amount) external {
+        require(oracle.price(0) >= strike, "below strike");
+        require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
+
+        hodlMulti.burn(msg.sender, strike, amount);
+
+        // Close out before updating `deposits`
+        _closeOutEpoch(strike);
+
+        amount = _withdraw(amount, msg.sender);
+        deposits -= amount;
+
+        emit RedeemTokens(msg.sender, strike, amount);
+    }
+
+    function _closeOutEpoch(uint64 strike) private {
+        uint32 epochId = epochs[strike];
+        if (epochId == 0) {
+            return;
+        }
+
+        // Checkpoint this strike, to prevent yield accumulation
+        _checkpoint(epochId);
+
+        // Record the ypt at redemption time
+        terminalYieldPerToken[epochId] = yieldPerToken();
+
+        // Update accounting for staked y tokens
+        yStakedTotal -= yStaked[epochId];
+        yStaked[epochId] = 0;
+
+        // Burn all staked y tokens at that strike
+        yMulti.burnStrike(strike);
+
+        // Don't checkpoint again, trigger new epoch
+        epochs[strike] = 0;
     }
 
     // yStake takes y tokens and stakes them, which makes those tokens receive

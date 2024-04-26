@@ -585,6 +585,138 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
     }
 
+    function testRedeemTokens() public {
+        initVault();
+
+        oracle.setPrice(strike1 - 1);
+
+        // mint hodl tokens
+        vm.startPrank(alice);
+        vault.mint{value: 4 ether}(strike1);
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 4 ether, 10);
+
+        vm.expectRevert("below strike");
+        vault.redeemTokens(strike1, 2 ether);
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 4 ether, 10);
+        vm.stopPrank();
+
+        oracle.setPrice(strike1 + 1);
+
+        uint256 before = IERC20(steth).balanceOf(alice);
+
+        vm.startPrank(alice);
+        vault.redeemTokens(strike1, 2 ether);
+
+        vm.expectRevert("redeem tokens balance");
+        vault.redeemTokens(strike1, 10 ether);
+
+        vault.redeemTokens(strike1, 2 ether - 2);
+        vm.stopPrank();
+
+        uint256 delta = IERC20(steth).balanceOf(alice) - before;
+        assertClose(delta, 4 ether, 10);
+    }
+
+    function testMultipleRedeems() public {
+        initVault();
+        oracle.setPrice(strike1 - 1);
+
+        // - Alice mints + stakes hodl
+        vm.startPrank(alice);
+        uint32 epoch1 = vault.nextId();
+        vault.mint{value: 4 ether}(strike1);
+        uint32 stake1 = vault.hodlStake(strike1, 3 ether, alice);
+        vm.stopPrank();
+
+        // - Bob mints hodl, doesn't stake
+        vm.startPrank(bob);
+        vault.mint{value: 4 ether}(strike1);
+        vm.stopPrank();
+
+        // - Alice cannot redeem
+        vm.startPrank(alice);
+        vm.expectRevert("cannot redeem");
+        vault.redeem(1 ether, stake1);
+        vm.stopPrank();
+
+        // - Strike hits
+        oracle.setPrice(strike1 + 1);
+
+        // - Alice redeems
+        vm.startPrank(alice);
+        vault.redeem(1 ether, stake1);
+        vm.stopPrank();
+
+        // TODO: verify balances
+
+        // - Bob redeems some
+        vm.startPrank(bob);
+        vault.redeemTokens(strike1, 1 ether);
+        vm.stopPrank();
+
+        // TODO: verify balances
+
+        // - Price falls below strike
+        oracle.setPrice(strike1 - 1);
+
+        // - Bob cannot redeem now
+        vm.startPrank(bob);
+        vm.expectRevert("below strike");
+        vault.redeemTokens(strike1, 1 ether);
+        vm.stopPrank();
+
+        // TODO: verify balances
+
+        // - Alice can still redeem
+        vm.startPrank(alice);
+        vault.redeem(1 ether, stake1);
+        vm.stopPrank();
+
+        // TODO: verify balances
+
+        // - Chad mints hodl, stakes, fails to redeem
+        vm.startPrank(chad);
+        uint32 epoch2 = vault.nextId();
+        vault.mint{value: 4 ether}(strike1);
+        uint32 stake2 = vault.hodlStake(strike1, 2 ether, chad);
+        vm.expectRevert("cannot redeem");
+        vault.redeem(1 ether, stake2);
+        vm.stopPrank();
+
+        // TODO: verify balances
+
+        // - Degen mints hodl, fails to redeem
+        vm.startPrank(degen);
+        vault.mint{value: 4 ether}(strike1);
+        vm.expectRevert("below strike");
+        vault.redeemTokens(strike1, 1 ether);
+        vm.stopPrank();
+
+        // - Strike hits again
+        oracle.setPrice(strike1 + 1);
+
+        // - Redemption for all
+        vm.startPrank(alice);
+        vault.redeem(1 ether, stake1);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vault.redeemTokens(strike1, 1 ether);
+        vm.stopPrank();
+
+        vm.startPrank(chad);
+        vault.redeem(1 ether, stake2);
+        vm.stopPrank();
+
+        vm.startPrank(degen);
+        vault.redeemTokens(strike1, 1 ether);
+        vm.stopPrank();
+
+        // TODO: verify balances
+    }
+
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
         IERC20(steth).transfer(address(vault.source()), amount);
