@@ -5,6 +5,8 @@ import "forge-std/console.sol";
 
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 import { IOracle } from "./interfaces/IOracle.sol";
 import { IYieldSource } from "./interfaces/IYieldSource.sol";
 
@@ -13,7 +15,7 @@ import { YMultiToken } from "./multi/YMultiToken.sol";
 import { HodlToken } from  "./single/HodlToken.sol";
 
 
-contract Vault {
+contract Vault is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION_FACTOR = 1 ether;
@@ -126,7 +128,7 @@ contract Vault {
                 uint32 indexed stakeId,
                 uint256 amount);
 
-    constructor(address source_, address oracle_) {
+    constructor(address source_, address oracle_) ReentrancyGuard() {
         source = IYieldSource(source_);
         oracle = IOracle(oracle_);
 
@@ -134,7 +136,7 @@ contract Vault {
         yMulti = new YMultiToken("", address(this));
     }
 
-    function deployERC20(uint64 strike) public returns (address) {
+    function deployERC20(uint64 strike) public nonReentrant returns (address) {
         if (address(deployments[strike]) != address(0)) {
             return address(deployments[strike]);
         }
@@ -164,7 +166,7 @@ contract Vault {
         cumulativeYieldAcc = total;
     }
 
-    function mint(uint64 strike) external payable {
+    function mint(uint64 strike) external nonReentrant payable {
         require(oracle.price(0) <= strike, "strike too low");
 
         IERC20 token = IERC20(source.asset());
@@ -218,7 +220,7 @@ contract Vault {
     }
 
     // merge combines equal parts y + hodl tokens into the underlying asset.
-    function merge(uint64 strike, uint256 amount) external {
+    function merge(uint64 strike, uint256 amount) external nonReentrant {
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount);
         require(yMulti.balanceOf(msg.sender, strike) >= amount);
 
@@ -235,7 +237,7 @@ contract Vault {
     // redeem converts a stake into the underlying tokens if the price has
     // touched the strike. The redemption can happen even if the price later
     // dips below.
-    function redeem(uint256 amount, uint32 stakeId) external {
+    function redeem(uint256 amount, uint32 stakeId) external nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
 
         require(stk.user == msg.sender, "redeem user");
@@ -274,7 +276,7 @@ contract Vault {
     // yStake takes y tokens and stakes them, which makes those tokens receive
     // yield. Only staked y tokens receive yield. This is to enable proper yield
     // accounting in relation to hodl token redemptions.
-    function yStake(uint64 strike, uint256 amount, address user) public returns (uint32) {
+    function yStake(uint64 strike, uint256 amount, address user) public nonReentrant returns (uint32) {
         require(yMulti.balanceOf(msg.sender, strike) >= amount, "y stake balance");
         uint32 epochId = epochs[strike];
 
@@ -354,7 +356,7 @@ contract Vault {
     }
 
     // claim transfers to the user his claimable yield.
-    function claim(uint32 stakeId) public {
+    function claim(uint32 stakeId) public nonReentrant {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y claim user");
 
@@ -367,7 +369,7 @@ contract Vault {
 
     // hodlStake takes some hodl tokens, and stakes them. This make them
     // eligible for redemption when the strike price hits.
-    function hodlStake(uint64 strike, uint256 amount, address user) public returns (uint32) {
+    function hodlStake(uint64 strike, uint256 amount, address user) public nonReentrant returns (uint32) {
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "hodl stake balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
@@ -386,7 +388,7 @@ contract Vault {
 
     // hodlUnstake can be used to return some portion of staked tokens to the
     // user.
-    function hodlUnstake(uint32 stakeId, uint256 amount, address user) public {
+    function hodlUnstake(uint32 stakeId, uint256 amount, address user) public nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
         require(stk.user == msg.sender, "hodl unstake user");
         require(stk.amount >= amount, "hodl unstake zero");
