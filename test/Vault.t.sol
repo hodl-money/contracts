@@ -14,6 +14,7 @@ import { Vault } from  "../src/Vault.sol";
 import { Router } from  "../src/Router.sol";
 import { StETHERC4626 } from "../src/assets/StETHERC4626.sol";
 import { HodlToken } from  "../src/single/HodlToken.sol";
+import { ChainlinkOracle } from  "../src/oracle/ChainlinkOracle.sol";
 
 
 contract VaultTest is BaseTest {
@@ -46,7 +47,6 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
 
         vm.startPrank(bob);
-
         uint32 epoch2 = vault.nextId();
         vault.mint{value: 4 ether}(strike2);
         vm.stopPrank();
@@ -265,6 +265,26 @@ contract VaultTest is BaseTest {
         assertClose(vault.cumulativeYield(epoch2), 0.28 ether, 100);
         assertClose(vault.cumulativeYield(epoch3), 0.16 ether, 100);  // [strike3] redeemed, so no increase
         assertClose(vault.cumulativeYield(epoch4), 0.04 ether, 100);  // [strike3] staked in new epoch
+    }
+
+    function testWithChainlinkOracle() public {
+        ChainlinkOracle chainlink = new ChainlinkOracle(ethPriceFeed);
+        StETHERC4626 asset = new StETHERC4626(steth);
+        vault = new Vault(address(asset), address(chainlink));
+
+        // Verify price at the forked block
+        uint64 price = 172509460550;
+        assertEq(chainlink.price(0), price);
+
+        uint64 strikeBelow = price - 1;
+        uint64 strikeAbove = price + 1;
+
+        vm.startPrank(alice);
+        vm.expectRevert("strike too low");
+        vault.mint{value: 1 ether}(strikeBelow);
+
+        vault.mint{value: 1 ether}(strikeAbove);
+        vm.stopPrank();
     }
 
     function testERC20() public {

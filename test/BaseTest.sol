@@ -23,6 +23,9 @@ contract BaseTest is Test {
     // Aave
     address public aavePool = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
 
+    // Chainlink
+    address public ethPriceFeed = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
+
     address public alice;
     address public bob;
     address public chad;
