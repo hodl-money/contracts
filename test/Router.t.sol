@@ -10,6 +10,7 @@ import { IStEth } from "../src/interfaces/IStEth.sol";
 import { Vault } from  "../src/Vault.sol";
 import { Router } from  "../src/Router.sol";
 import { StETHERC4626 } from "../src/assets/StETHERC4626.sol";
+import { StETHYieldSource } from "../src/sources/StETHYieldSource.sol";
 import { HodlToken } from  "../src/single/HodlToken.sol";
 import { ILiquidityPool } from "../src/interfaces/ILiquidityPool.sol";
 
@@ -43,7 +44,8 @@ contract RouterTest is BaseTest {
         // Set up: deploy vault, mint some hodl for alice, make it redeemable
         oracle = new FakeOracle();
         StETHERC4626 asset = new StETHERC4626(steth);
-        vault = new Vault(address(asset), address(oracle));
+        StETHYieldSource source = new StETHYieldSource(steth);
+        vault = new Vault(address(asset), address(source), address(oracle));
         oracle.setPrice(strike1 - 1);
         address hodl1 = vault.deployERC20(strike1);
         vm.startPrank(alice);

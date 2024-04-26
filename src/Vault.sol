@@ -7,6 +7,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IOracle } from "./interfaces/IOracle.sol";
 import { IAsset } from "./interfaces/IAsset.sol";
+import { IYieldSource } from "./interfaces/IYieldSource.sol";
 
 import { HodlMultiToken } from "./multi/HodlMultiToken.sol";
 import { YMultiToken } from "./multi/YMultiToken.sol";
@@ -20,9 +21,9 @@ contract Vault {
 
     uint32 public nextId = 1;
 
-    IOracle public immutable oracle;
-
     IAsset public immutable asset;
+    IYieldSource public immutable source;
+    IOracle public immutable oracle;
 
     HodlMultiToken public immutable hodlMulti;
     YMultiToken public immutable yMulti;
@@ -127,10 +128,9 @@ contract Vault {
                 uint32 indexed stakeId,
                 uint256 amount);
 
-    constructor(address asset_, address oracle_) {
-        require(oracle_ != address(0));
-
+    constructor(address asset_, address source_, address oracle_) {
         asset = IAsset(asset_);
+        source = IYieldSource(source_);
         oracle = IOracle(oracle_);
 
         hodlMulti = new HodlMultiToken("");

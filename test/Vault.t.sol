@@ -13,6 +13,7 @@ import { ILiquidityPool } from "../src/interfaces/ILiquidityPool.sol";
 import { Vault } from  "../src/Vault.sol";
 import { Router } from  "../src/Router.sol";
 import { StETHERC4626 } from "../src/assets/StETHERC4626.sol";
+import { StETHYieldSource } from "../src/sources/StETHYieldSource.sol";
 import { HodlToken } from  "../src/single/HodlToken.sol";
 import { ChainlinkOracle } from  "../src/oracle/ChainlinkOracle.sol";
 
@@ -34,7 +35,8 @@ contract VaultTest is BaseTest {
         oracle = new FakeOracle();
         oracle.setPrice(1999_00000000);
         StETHERC4626 asset = new StETHERC4626(steth);
-        vault = new Vault(address(asset), address(oracle));
+        StETHYieldSource source = new StETHYieldSource(steth);
+        vault = new Vault(address(asset), address(source), address(oracle));
     }
 
     function testVault() public {
@@ -270,7 +272,8 @@ contract VaultTest is BaseTest {
     function testWithChainlinkOracle() public {
         ChainlinkOracle chainlink = new ChainlinkOracle(ethPriceFeed);
         StETHERC4626 asset = new StETHERC4626(steth);
-        vault = new Vault(address(asset), address(chainlink));
+        StETHYieldSource source = new StETHYieldSource(steth);
+        vault = new Vault(address(asset), address(source), address(chainlink));
 
         // Verify price at the forked block
         uint64 price = 172509460550;
