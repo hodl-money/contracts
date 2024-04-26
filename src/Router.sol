@@ -27,7 +27,7 @@ import { IPool } from "../src/interfaces/aave/IPool.sol";
 //  - Buying/selling hodl tokens
 //  - Buying/selling y tokens
 //
-contract Router {
+contract Router is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint8 public constant LOAN_Y_BUY = 1;
@@ -85,7 +85,7 @@ contract Router {
                 address swapRouter_,
                 address manager_,
                 address quoterV2_,
-                address aavePool_) {
+                address aavePool_) ReentrancyGuard() {
 
         vault = Vault(vault_);
         weth = IWrappedETH(weth_);
@@ -113,7 +113,7 @@ contract Router {
 
     // Add liquidity respecting the fact that 1 hodl token should never trade
     // above a price of 1 ETH.
-    function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) public payable {
+    function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) public nonReentrant payable {
         IERC20 hodlToken = vault.deployments(strike);
         require(address(hodlToken) != address(0), "no deployed ERC20");
 
@@ -186,7 +186,7 @@ contract Router {
         return amountOut;
     }
 
-    function hodlBuy(uint64 strike, uint256 minOut) public payable returns (uint256) {
+    function hodlBuy(uint64 strike, uint256 minOut) public nonReentrant payable returns (uint256) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -233,7 +233,7 @@ contract Router {
         return out;
     }
 
-    function hodlSell(uint64 strike, uint256 amount, uint256 minOut) public payable returns (uint256) {
+    function hodlSell(uint64 strike, uint256 amount, uint256 minOut) public nonReentrant payable returns (uint256) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -322,7 +322,7 @@ contract Router {
         return (out, loan);
     }
 
-    function yBuy(uint64 strike, uint256 loan, uint256 minOut) public payable returns (uint256) {
+    function yBuy(uint64 strike, uint256 loan, uint256 minOut) public nonReentrant payable returns (uint256) {
         uint256 value = msg.value;
         bytes memory data = abi.encode(LOAN_Y_BUY, msg.sender, strike, value + loan, minOut);
 
@@ -431,7 +431,7 @@ contract Router {
     function ySell(uint64 strike,
                    uint256 loan,
                    uint256 amount,
-                   uint256 minOut) public returns (uint256) {
+                   uint256 minOut) public nonReentrant returns (uint256) {
 
         // The y token sale has these steps:
         //
