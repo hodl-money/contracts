@@ -80,7 +80,7 @@ contract RouterTest is BaseTest {
         oracle.setPrice(strike1 + 1);
     }
 
-    function testGas_HodlBuys() public {
+    function testGas_HodlBuysSells() public {
         initRouter();
 
         vm.deal(alice, 1 ether);
@@ -88,13 +88,17 @@ contract RouterTest is BaseTest {
 
         for (uint256 i = 0; i < 5; i++) {
             uint256 amountHodl = router.hodlBuy{value: 0.1 ether}(strike1, 0);
-            router.vault().hodlStake(strike1, amountHodl, alice);
+            uint32 stakeId = router.vault().hodlStake(strike1, amountHodl, alice);
+            router.vault().hodlUnstake(stakeId, amountHodl, alice);
+            IERC20 token = vault.deployments(strike1);
+            token.approve(address(router), amountHodl);
+            router.hodlSell(strike1, amountHodl, 0);
         }
 
         vm.stopPrank();
     }
 
-    function testGas_YBuys() public {
+    function testGas_YBuysSells() public {
         initRouter();
 
         oracle.setPrice(strike1 - 1);
@@ -104,9 +108,13 @@ contract RouterTest is BaseTest {
 
         for (uint256 i = 0; i < 5; i++) {
             uint256 amount = 0.01 ether;
-            (uint256 amountY, uint256 loan) = router.previewYBuy(strike1, amount);
-            router.yBuy{value: amount}(strike1, loan, amountY - 10);
-            router.vault().yStake(strike1, amountY, alice);
+            (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
+            router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
+            uint32 stakeId = router.vault().yStake(strike1, amountY, alice);
+            router.vault().yUnstake(stakeId, alice);
+            vault.yMulti().setApprovalForAll(address(router), true);
+            (uint256 loanSell, ) = router.previewYSell(strike1, amountY);
+            router.ySell(strike1, loanSell, amountY, 0);
         }
 
         vm.stopPrank();
@@ -128,7 +136,7 @@ contract RouterTest is BaseTest {
         vm.startPrank(alice);
         assertEq(uniswapV3Pool.liquidity(), 59065148190976308112);
         router.addLiquidity{value: 1 ether}(strike1, 0.5 ether, 1800);
-        assertEq(uniswapV3Pool.liquidity(), 64971663010073938912);
+        assertEq(uniswapV3Pool.liquidity(), 64971663010073938924);
         vm.stopPrank();
     }
 

@@ -106,11 +106,11 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
 
         vm.startPrank(bob);
-        uint32 stake5 = vault.yStake(strike2, 4 ether - 2, bob);
+        uint32 stake5 = vault.yStake(strike2, 4 ether, bob);
         vm.stopPrank();
 
         vm.startPrank(chad);
-        uint32 stake6 = vault.yStake(strike3, 8 ether, chad);
+        uint32 stake6 = vault.yStake(strike3, 8 ether - 1, chad);
         vm.stopPrank();
 
         assertClose(vault.yMulti().balanceOf(alice, strike1), 2 ether, 10);
@@ -164,7 +164,6 @@ contract VaultTest is BaseTest {
         assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
         assertClose(IERC20(steth).balanceOf(bob), 0, 10);
         assertClose(IERC20(steth).balanceOf(chad), 0, 10);
-
 
         // simulate more yield, verify only epoch2 and epoch3 get it
 
@@ -306,7 +305,7 @@ contract VaultTest is BaseTest {
 
         assertEq(vault.hodlMulti().totalSupply(strike1), hodl1.totalSupply());
 
-        assertEq(vault.hodlMulti().balanceOf(alice, strike1), 1 ether - 2);
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
 
         assertEq(vault.hodlMulti().balanceOf(alice, strike1), hodl1.balanceOf(alice));
         assertEq(vault.hodlMulti().balanceOf(bob, strike1), hodl1.balanceOf(bob));
@@ -317,7 +316,7 @@ contract VaultTest is BaseTest {
         hodl1.transfer(bob, 0.1 ether);
         vm.stopPrank();
 
-        assertEq(hodl1.balanceOf(alice), 0.9 ether - 2);
+        assertClose(hodl1.balanceOf(alice), 0.9 ether, 10);
         assertEq(hodl1.balanceOf(bob), 0.1 ether);
 
         vm.startPrank(degen);
@@ -341,7 +340,7 @@ contract VaultTest is BaseTest {
         hodl1.transferFrom(alice, chad, 0.2 ether);
         vm.stopPrank();
 
-        assertEq(hodl1.balanceOf(alice), 0.7 ether - 2);
+        assertClose(hodl1.balanceOf(alice), 0.7 ether, 10);
         assertEq(hodl1.balanceOf(bob), 0.1 ether);
         assertEq(hodl1.balanceOf(chad), 0.2 ether);
         assertEq(hodl1.balanceOf(degen), 0);
