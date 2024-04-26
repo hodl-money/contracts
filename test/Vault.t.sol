@@ -623,59 +623,83 @@ contract VaultTest is BaseTest {
         initVault();
         oracle.setPrice(strike1 - 1);
 
-        // - Alice mints + stakes hodl
+        // TODO: add ybETH / yield verification
+
+        // Alice mints + stakes hodl
         vm.startPrank(alice);
         vault.mint{value: 4 ether}(strike1);
         uint32 stake1 = vault.hodlStake(strike1, 3 ether, alice);
         vm.stopPrank();
 
-        // - Bob mints hodl, doesn't stake
+        // Bob mints hodl, doesn't stake
         vm.startPrank(bob);
         vault.mint{value: 4 ether}(strike1);
         vm.stopPrank();
 
-        // - Alice cannot redeem
+        // Alice cannot redeem
         vm.startPrank(alice);
         vm.expectRevert("cannot redeem");
         vault.redeem(stake1, 1 ether);
         vm.stopPrank();
 
-        // - Strike hits
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 4 ether, 10);
+        assertEq(IERC20(steth).balanceOf(alice), 0);
+        assertEq(IERC20(steth).balanceOf(bob), 0);
+        assertStakeBalance(stake1, alice, 3 ether);
+
+        // Strike hits
         oracle.setPrice(strike1 + 1);
 
-        // - Alice redeems
+        // Alice redeems
         vm.startPrank(alice);
         vault.redeem(stake1, 1 ether);
         vm.stopPrank();
 
-        // TODO: verify balances
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 4 ether, 10);
+        assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
+        assertEq(IERC20(steth).balanceOf(bob), 0);
+        assertStakeBalance(stake1, alice, 2 ether);
 
-        // - Bob redeems some
+        // Bob redeems some
         vm.startPrank(bob);
         vault.redeemTokens(strike1, 1 ether);
         vm.stopPrank();
 
-        // TODO: verify balances
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 3 ether, 10);
+        assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
+        assertClose(IERC20(steth).balanceOf(bob), 1 ether, 10);
+        assertStakeBalance(stake1, alice, 2 ether);
 
-        // - Price falls below strike
+        // Price falls below strike
         oracle.setPrice(strike1 - 1);
 
-        // - Bob cannot redeem now
+        // Bob cannot redeem now
         vm.startPrank(bob);
         vm.expectRevert("below strike");
         vault.redeemTokens(strike1, 1 ether);
         vm.stopPrank();
 
-        // TODO: verify balances
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 3 ether, 10);
+        assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
+        assertClose(IERC20(steth).balanceOf(bob), 1 ether, 10);
+        assertStakeBalance(stake1, alice, 2 ether);
 
-        // - Alice can still redeem
+        // Alice can still redeem
         vm.startPrank(alice);
         vault.redeem(stake1, 1 ether);
         vm.stopPrank();
 
-        // TODO: verify balances
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 3 ether, 10);
+        assertClose(IERC20(steth).balanceOf(alice), 2 ether, 10);
+        assertClose(IERC20(steth).balanceOf(bob), 1 ether, 10);
+        assertStakeBalance(stake1, alice, 1 ether);
 
-        // - Chad mints hodl, stakes, fails to redeem
+        // Chad mints hodl, stakes, fails to redeem
         vm.startPrank(chad);
         vault.mint{value: 4 ether}(strike1);
         uint32 stake2 = vault.hodlStake(strike1, 2 ether, chad);
@@ -683,19 +707,37 @@ contract VaultTest is BaseTest {
         vault.redeem(stake2, 1 ether);
         vm.stopPrank();
 
-        // TODO: verify balances
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 3 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 2 ether, 10);
+        assertClose(IERC20(steth).balanceOf(alice), 2 ether, 10);
+        assertClose(IERC20(steth).balanceOf(bob), 1 ether, 10);
+        assertEq(IERC20(steth).balanceOf(chad), 0);
+        assertStakeBalance(stake1, alice, 1 ether);
+        assertStakeBalance(stake2, chad, 2 ether);
 
-        // - Degen mints hodl, fails to redeem
+        // Degen mints hodl, fails to redeem
         vm.startPrank(degen);
         vault.mint{value: 4 ether}(strike1);
         vm.expectRevert("below strike");
         vault.redeemTokens(strike1, 1 ether);
         vm.stopPrank();
 
-        // - Strike hits again
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 3 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 2 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(degen, strike1), 4 ether, 10);
+        assertClose(IERC20(steth).balanceOf(alice), 2 ether, 10);
+        assertClose(IERC20(steth).balanceOf(bob), 1 ether, 10);
+        assertEq(IERC20(steth).balanceOf(chad), 0);
+        assertEq(IERC20(steth).balanceOf(degen), 0);
+        assertStakeBalance(stake1, alice, 1 ether);
+        assertStakeBalance(stake2, chad, 2 ether);
+
+        // Strike hits again
         oracle.setPrice(strike1 + 1);
 
-        // - Redemption for all
+        // Redemption for all
         vm.startPrank(alice);
         vault.redeem(stake1, 1 ether);
         vm.stopPrank();
@@ -712,7 +754,16 @@ contract VaultTest is BaseTest {
         vault.redeemTokens(strike1, 1 ether);
         vm.stopPrank();
 
-        // TODO: verify balances
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 2 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 2 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(degen, strike1), 3 ether, 10);
+        assertClose(IERC20(steth).balanceOf(alice), 3 ether, 10);
+        assertClose(IERC20(steth).balanceOf(bob), 2 ether, 10);
+        assertClose(IERC20(steth).balanceOf(chad), 1 ether, 10);
+        assertClose(IERC20(steth).balanceOf(degen), 1 ether, 10);
+        assertStakeBalance(stake1, alice, 0);
+        assertStakeBalance(stake2, chad, 1 ether);
     }
 
     function simulateYield(uint256 amount) internal {
@@ -747,5 +798,11 @@ contract VaultTest is BaseTest {
             vm.stopPrank();
             assertClose(IERC20(steth).balanceOf(user), before, 10);
         }
+    }
+
+    function assertStakeBalance(uint32 stakeId, address expectedUser, uint256 expectedAmount) public {
+        (address user, , , uint256 amount) = vault.hodlStakes(stakeId);
+        assertEq(expectedUser, user);
+        assertEq(expectedAmount, amount);
     }
 }
