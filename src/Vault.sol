@@ -15,7 +15,74 @@ import { HodlMultiToken } from "./multi/HodlMultiToken.sol";
 import { YMultiToken } from "./multi/YMultiToken.sol";
 import { HodlToken } from  "./single/HodlToken.sol";
 
-
+// Vault is the core contract for HODL.money. It contains most of the accounting
+// logic around token distribution and yield accounting.
+//
+// The protocol is based on two complementary tokens, plETH and ybETH, which
+// represent long and short positions. The plETH tokens (long position) redeem
+// into the underlying token (eg. stETH) after a particular strike price has
+// been reached. The ybETH tokens (short position) receive yield from the
+// underlying *until* the strike price is reached.
+//
+// The plETH side makes more profit the faster the strike hits, whereas ybETH
+// side wants the strike price to hit as long in the future as possible, ideally
+// never.
+//
+// Technical details:
+//
+// * Minting
+// The plETH and ybETH tokens are minted by the Vault. The user transfers some
+// amount of ETH into the contract, and he mints the same amount of plETH and
+// ybETH as he transferred. For example, a deposit of 1 ETH gives the user
+// 1 plETH and 1 ybETH at the strike he chose.
+//
+// * Staking plETH
+// Users may stake plETH in anticipation of the strike price hitting. If the
+// the user stakes his plETH, he can redeem that stake for underlying stETH once
+// the strike hits. The benefit of staking is that he can do the redemption even
+// if the price later falls back down below the strike.
+//
+// * Staking ybETH
+// Users need to stake ybETH to receive yield. Staked ybETH receives yield until
+// the strike price hits. Staking is used to track how much yield each user is
+// entitled to. Unstaked ybETH does not get yield, and overflow yield is evenly
+// distributed across the other staked positions.
+//
+// * Epochs
+// Strikes are tracked on a per-epoch basis. This is to account for the
+// possibility that the price rises above a strike, then back below, then back
+// above again. Multiple crosses across a strike price *may* result in multiple
+// epochs.
+//
+// Each epoch has a start time, and is associated with a strike price. When the
+// price rises above the strike, plETH redemption is enabled in that epoch. This
+// means all staked plETH within that epoch can be redeemed. In addition, once
+// redemption is enabled for particular epoch, ybETH in that epoch stops
+// accumulating yield.
+//
+// * Burning ybETH
+// When a strike price hits, all ybETH stakes at that strike stop accumulating
+// yield. In addition, all ybETH at that strike is burned, meaning user balances
+// go to zero.
+//
+// * Merging
+// Another way to recover the underlying is to merge equal parts plETH and
+// ybETH. This is called merging.
+//
+// * ERC-1155 tokens and ERC-20 wrappers
+// The plETH and ybETH tokens are each implemented using the ERC-1155 standard
+// for semi-fungible tokens. The tokens are fungible within a strike, eg. all
+// plETH at strike of $10,000 are fungible. However, $9,999 is non-fungible with
+// $10,000.
+//
+// For compatibility with broader Defi, an ERC-20 wrapper can be deployed for
+// the plETH token at any strike. For example, you can deploy a ERC-20 token
+// that represents plETH at strike of $10,000. The token contracts let the
+// ERC-20 wrapper make transfers within the ERC-1155 contract.
+//
+// * Naming
+// Within the code, 'hodl' tokens refer to plETH, and 'y' tokens refer to ybETH.
+//
 contract Vault is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
@@ -168,7 +235,7 @@ contract Vault is ReentrancyGuard, Pausable {
     }
 
     function mint(uint64 strike) external nonReentrant whenNotPaused payable {
-        require(oracle.price(0) <= strike, "strike too low");
+        require(oracle.price(0) < strike, "strike too low");
 
         uint256 amount = source.deposit{value: msg.value}();
         deposits += amount;
