@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Pausable } from  "@openzeppelin/contracts/utils/Pausable.sol";
 
 import { IOracle } from "./interfaces/IOracle.sol";
 import { IYieldSource } from "./interfaces/IYieldSource.sol";
@@ -15,7 +16,7 @@ import { YMultiToken } from "./multi/YMultiToken.sol";
 import { HodlToken } from  "./single/HodlToken.sol";
 
 
-contract Vault is ReentrancyGuard {
+contract Vault is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION_FACTOR = 1 ether;
@@ -128,7 +129,7 @@ contract Vault is ReentrancyGuard {
                 uint32 indexed stakeId,
                 uint256 amount);
 
-    constructor(address source_, address oracle_) ReentrancyGuard() {
+    constructor(address source_, address oracle_) ReentrancyGuard() Pausable() {
         source = IYieldSource(source_);
         oracle = IOracle(oracle_);
 
@@ -166,7 +167,7 @@ contract Vault is ReentrancyGuard {
         cumulativeYieldAcc = total;
     }
 
-    function mint(uint64 strike) external nonReentrant payable {
+    function mint(uint64 strike) external nonReentrant whenNotPaused payable {
         require(oracle.price(0) <= strike, "strike too low");
 
         IERC20 token = IERC20(source.asset());
