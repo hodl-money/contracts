@@ -155,12 +155,12 @@ contract RouterTest is BaseTest {
         assertEq(previewOut, 233732374240915488);
 
         vm.expectRevert("redeem user");
-        vault.redeem(out, stakeId);
+        vault.redeem(stakeId, out);
 
         uint256 before = IERC20(steth).balanceOf(alice);
 
         vm.startPrank(alice);
-        vault.redeem(out, stakeId);
+        vault.redeem(stakeId, out);
         vm.stopPrank();
 
         uint256 delta = IERC20(steth).balanceOf(alice) - before;

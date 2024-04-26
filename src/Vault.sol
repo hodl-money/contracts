@@ -302,7 +302,7 @@ contract Vault is ReentrancyGuard, Pausable {
     // redeem converts a stake into the underlying tokens if the price has
     // touched the strike. The redemption can happen even if the price later
     // dips below.
-    function redeem(uint256 amount, uint32 stakeId) external nonReentrant {
+    function redeem(uint32 stakeId, uint256 amount) external nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
 
         require(stk.user == msg.sender, "redeem user");
