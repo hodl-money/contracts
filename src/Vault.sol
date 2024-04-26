@@ -308,16 +308,18 @@ contract Vault {
         require(stk.user == msg.sender, "y unstake user");
         require(stk.amount > 0, "y unstake zero");
 
+        uint256 amount = stk.amount;
+
         _checkpoint(stk.epochId);
+
         stk.acc = stk.claimed + claimable(stakeId);
-
-        yStaked[stk.epochId] -= stk.amount;
-        yStakedTotal -= stk.amount;
-        yMulti.mint(user, stk.strike, stk.amount);
-
+        yStaked[stk.epochId] -= amount;
+        yStakedTotal -= amount;
         stk.amount = 0;
 
-        emit YUnstake(user, stk.strike, stakeId, stk.amount);
+        yMulti.mint(user, stk.strike, amount);
+
+        emit YUnstake(user, stk.strike, stakeId, amount);
     }
 
     // Compte the yield per token of a particular stake of y tokens.
