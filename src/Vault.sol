@@ -6,7 +6,6 @@ import "forge-std/console.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IOracle } from "./interfaces/IOracle.sol";
-import { IAsset } from "./interfaces/IAsset.sol";
 import { IYieldSource } from "./interfaces/IYieldSource.sol";
 
 import { HodlMultiToken } from "./multi/HodlMultiToken.sol";
@@ -21,7 +20,6 @@ contract Vault {
 
     uint32 public nextId = 1;
 
-    IAsset public immutable asset;
     IYieldSource public immutable source;
     IOracle public immutable oracle;
 
@@ -128,8 +126,7 @@ contract Vault {
                 uint32 indexed stakeId,
                 uint256 amount);
 
-    constructor(address asset_, address source_, address oracle_) {
-        asset = IAsset(asset_);
+    constructor(address source_, address oracle_) {
         source = IYieldSource(source_);
         oracle = IOracle(oracle_);
 
@@ -170,16 +167,13 @@ contract Vault {
     function mint(uint64 strike) external payable {
         require(oracle.price(0) <= strike, "strike too low");
 
-        /* IERC20 token = IERC20(asset.asset()); */
         IERC20 token = IERC20(source.asset());
 
         uint256 before = token.balanceOf(address(this));
-        /* asset.wrap{value: msg.value}(0); */
         source.wrap{value: msg.value}(0);
         uint256 amount = token.balanceOf(address(this)) - before;
 
         token.approve(address(source), amount);
-        /* asset.deposit(amount, address(this)); */
         source.deposit(amount);
         deposits += amount;
 
@@ -218,9 +212,7 @@ contract Vault {
     }
 
     function _withdraw(uint256 amount, address user) private returns (uint256) {
-        /* amount = _min(amount, asset.maxWithdraw(address(this))); */
         amount = _min(amount, source.balance());
-        /* asset.withdraw(amount, user, address(this)); */
         source.withdraw(amount, user);
         return amount;
     }
@@ -437,7 +429,6 @@ contract Vault {
     // totalCumulativeYield calculates the total amount of yield for this vault,
     // accross all epochs and strikes.
     function totalCumulativeYield() public view returns (uint256) {
-        /* uint256 balance = asset.convertToAssets(asset.balanceOf(address(this))); */
         uint256 balance = source.balance();
         uint256 delta = balance < deposits ? 0 : balance - deposits;
         uint256 result = delta + claimed;

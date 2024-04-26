@@ -12,7 +12,6 @@ import { IStEth } from "../src/interfaces/IStEth.sol";
 import { ILiquidityPool } from "../src/interfaces/ILiquidityPool.sol";
 import { Vault } from  "../src/Vault.sol";
 import { Router } from  "../src/Router.sol";
-import { StETHERC4626 } from "../src/assets/StETHERC4626.sol";
 import { StETHYieldSource } from "../src/sources/StETHYieldSource.sol";
 import { HodlToken } from  "../src/single/HodlToken.sol";
 import { ChainlinkOracle } from  "../src/oracle/ChainlinkOracle.sol";
@@ -34,9 +33,8 @@ contract VaultTest is BaseTest {
     function initVault() public {
         oracle = new FakeOracle();
         oracle.setPrice(1999_00000000);
-        StETHERC4626 asset = new StETHERC4626(steth);
         StETHYieldSource source = new StETHYieldSource(steth);
-        vault = new Vault(address(asset), address(source), address(oracle));
+        vault = new Vault(address(source), address(oracle));
         source.transferOwnership(address(vault));
     }
 
@@ -272,9 +270,8 @@ contract VaultTest is BaseTest {
 
     function testWithChainlinkOracle() public {
         ChainlinkOracle chainlink = new ChainlinkOracle(ethPriceFeed);
-        StETHERC4626 asset = new StETHERC4626(steth);
         StETHYieldSource source = new StETHYieldSource(steth);
-        vault = new Vault(address(asset), address(source), address(chainlink));
+        vault = new Vault(address(source), address(chainlink));
         source.transferOwnership(address(vault));
 
         // Verify price at the forked block
@@ -591,7 +588,6 @@ contract VaultTest is BaseTest {
 
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
-        /* IERC20(steth).transfer(address(vault.asset()), amount); */
         IERC20(steth).transfer(address(vault.source()), amount);
     }
 
