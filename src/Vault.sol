@@ -142,6 +142,7 @@ contract Vault is ReentrancyGuard, Pausable {
     // track yield per token and cumulative yield on a per epoch basis
     struct EpochInfo {
         uint64 strike;
+        bool closed;
         uint256 yieldPerTokenAcc;
         uint256 cumulativeYieldAcc;
     }
@@ -313,7 +314,7 @@ contract Vault is ReentrancyGuard, Pausable {
         stk.amount -= amount;
 
         // Close out before updating `deposits`
-        _closeOutEpoch(stk.strike);
+        _closeOutEpoch(stk.epochId);
 
         amount = _withdraw(amount, msg.sender);
         deposits -= amount;
@@ -331,7 +332,7 @@ contract Vault is ReentrancyGuard, Pausable {
         hodlMulti.burn(msg.sender, strike, amount);
 
         // Close out before updating `deposits`
-        _closeOutEpoch(strike);
+        _closeOutEpoch(epochs[strike]);
 
         amount = _withdraw(amount, msg.sender);
         deposits -= amount;
@@ -339,11 +340,16 @@ contract Vault is ReentrancyGuard, Pausable {
         emit RedeemTokens(msg.sender, strike, amount);
     }
 
-    function _closeOutEpoch(uint64 strike) private {
-        uint32 epochId = epochs[strike];
+    function _closeOutEpoch(uint32 epochId) private {
         if (epochId == 0) {
             return;
         }
+
+        if (infos[epochId].closed) {
+            return;
+        }
+
+        EpochInfo storage info = infos[epochId];
 
         // Checkpoint this strike, to prevent yield accumulation
         _checkpoint(epochId);
@@ -356,10 +362,13 @@ contract Vault is ReentrancyGuard, Pausable {
         yStaked[epochId] = 0;
 
         // Burn all staked y tokens at that strike
-        yMulti.burnStrike(strike);
+        yMulti.burnStrike(info.strike);
 
         // Don't checkpoint again, trigger new epoch
-        epochs[strike] = 0;
+        epochs[info.strike] = 0;
+
+        // Remember that we closed this epoch
+        info.closed = true;
     }
 
     // yStake takes y tokens and stakes them, which makes those tokens receive
@@ -398,6 +407,7 @@ contract Vault is ReentrancyGuard, Pausable {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y unstake user");
         require(stk.amount > 0, "y unstake zero");
+        require(terminalYieldPerToken[stk.epochId] == 0, "y unstake closed epoch");
 
         uint256 amount = stk.amount;
 
