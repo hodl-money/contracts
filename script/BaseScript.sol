@@ -46,10 +46,6 @@ contract BaseScript is Script {
             ethPriceFeed = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
             weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-            // Goerli Addresses
-            /* steth = 0x1643E812aE58766192Cf7D2Cf9567dF2C37e9B7F; */
-            /* ethPriceFeed = 0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e; */
-
         } else if (eq(vm.envString("NETWORK"), "fork")) {
             pk = vm.envUint("FORK_PRIVATE_KEY");
             deployerAddress = vm.envAddress("FORK_DEPLOYER_ADDRESS");
@@ -59,11 +55,6 @@ contract BaseScript is Script {
             wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
             ethPriceFeed = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
             weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
-            // Goerli Addresses
-            /* steth = 0x1643E812aE58766192Cf7D2Cf9567dF2C37e9B7F; */
-            /* ethPriceFeed = 0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e; */
-
         }
     }    
 }

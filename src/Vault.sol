@@ -16,7 +16,7 @@ import { YMultiToken } from "./multi/YMultiToken.sol";
 import { HodlToken } from  "./single/HodlToken.sol";
 
 // Vault is the core contract for HODL.money. It contains most of the accounting
-// logic around token distribution and yield accounting.
+// logic around token mechanics and yield.
 //
 // The protocol is based on two complementary tokens, plETH and ybETH, which
 // represent long and short positions. The plETH tokens (long position) redeem
@@ -27,6 +27,8 @@ import { HodlToken } from  "./single/HodlToken.sol";
 // The plETH side makes more profit the faster the strike hits, whereas ybETH
 // side wants the strike price to hit as long in the future as possible, ideally
 // never.
+//
+// For more information, visit https://docs.hodl.money/
 //
 // Technical details:
 //
@@ -81,7 +83,7 @@ import { HodlToken } from  "./single/HodlToken.sol";
 // ERC-20 wrapper make transfers within the ERC-1155 contract.
 //
 // * Naming
-// Within the code, 'hodl' tokens refer to plETH, and 'y' tokens refer to ybETH.
+// In code, 'hodl' tokens refer to plETH, and 'y' tokens refer to ybETH.
 //
 contract Vault is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
@@ -430,7 +432,7 @@ contract Vault is ReentrancyGuard, Pausable {
             // Active epoch
             return yieldPerToken();
         } else {
-            // Passed epoch
+            // Closed epoch
             return terminalYieldPerToken[stk.epochId];
         }
     }
@@ -442,11 +444,11 @@ contract Vault is ReentrancyGuard, Pausable {
 
         uint256 c;
         if (stk.amount == 0) {
-            // unstaked, use saved value
+            // Unstaked, use saved value
             c = stk.acc;
         } else {
-            // staked, use live value
-            assert(stk.acc == 0);  // only set when unstaking
+            // Staked, use live value
+            assert(stk.acc == 0);  // Only set when unstaking
             uint256 ypt = _stakeYpt(stakeId);
             c = ypt * stk.amount / PRECISION_FACTOR;
         }
