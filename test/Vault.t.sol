@@ -827,6 +827,115 @@ contract VaultTest is BaseTest {
         assertHodlStake(stake4, chad, 1 ether);
     }
 
+    // Test that redeem function correctly handles accounting
+    function testRedeemAccounting() public {
+        initVault();
+
+        // Alice mints HODL tokens: 1ETH @ strike1, epoch1
+        vm.startPrank(alice);
+        uint32 epoch1 = vault.nextId();
+        vault.mint{value: 1 ether}(strike1);
+        vm.stopPrank();
+
+        // Bob mints HODL tokens: 2 ETH @ strike1, epoch1
+        vm.startPrank(bob);
+        vault.mint{value: 2 ether}(strike1);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 2 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike1), 2 ether, 10);
+
+        // Alice stakes HODL & ytokens
+        vm.startPrank(alice);
+        uint32 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
+        vault.yStake(strike1, 1 ether - 2, alice);
+        vm.stopPrank();
+
+        // Bob stakes HODL & yTokens
+        vm.startPrank(bob);
+        uint32 bobHodlStake = vault.hodlStake(strike1, 2 ether - 2, bob);
+        vault.yStake(strike1, 2 ether - 2, bob);
+        vm.stopPrank();
+
+        // Epoch 1 includes both Alice and Bob's stakes
+        assertClose(vault.yStaked(epoch1), 3 ether, 10);
+
+        assertClose(vault.yStakedTotal(), 3 ether, 10);
+
+        // Price moves to above strike1
+        oracle.setPrice(strike1 + 1);
+
+        // Alice claims staked HODL tokens
+        vm.startPrank(alice);
+        vault.redeem(aliceHodlStake, 1 ether - 2);
+        vm.stopPrank();
+
+        // Price moves back below strike1
+        oracle.setPrice(strike1 - 1);
+
+        // Chad mints HODL tokens: 4 ETH @ strike1, epoch2
+        vm.startPrank(chad);
+        vault.mint{value: 4 ether}(strike1);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 4 ether, 10);
+        assertClose(vault.yMulti().balanceOf(chad, strike1), 4 ether, 10);
+
+        // Bob claims stake from epoch 1, we are currently in epoch 2
+        vm.startPrank(bob);
+        vault.redeem(bobHodlStake, 2 ether - 2);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 4 ether, 10);
+        assertClose(vault.yMulti().balanceOf(chad, strike1), 4 ether, 10);
+    }   
+
+
+    function testMerge() public {
+        initVault();
+
+        // Alice mints tokens: 1ETH @ strike1
+        vm.startPrank(alice);
+        vault.mint{value: 1 ether}(strike1);
+        vm.stopPrank();
+
+        // Bob mints tokens: 2ETH @ strike2
+        vm.startPrank(bob);
+        vault.mint{value: 2 ether}(strike2);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 1 ether, 10);
+
+        assertClose(vault.hodlMulti().balanceOf(bob, strike2), 2 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike2), 2 ether, 10);
+
+        // Alice merges strike 1 tokens
+        vm.startPrank(alice);
+        vault.merge(strike1, 1 ether - 1);
+        vm.stopPrank();
+
+        assertEq(vault.hodlMulti().balanceOf(alice, strike1), 0);
+        assertEq(vault.yMulti().balanceOf(alice, strike1), 0);
+        assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
+
+        // Bob merges half of his strike 2 tokens
+        vm.startPrank(bob);
+        vault.merge(strike2, 1 ether);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(bob, strike2), 1 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike2), 1 ether, 10);
+        assertClose(IERC20(steth).balanceOf(bob), 1 ether, 10);
+
+        // Bob can't merge more tokens than he has
+        vm.startPrank(bob);
+        vm.expectRevert("merge hodl balance");
+        vault.merge(strike2, 2 ether);
+    }
+
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
         IERC20(steth).transfer(address(vault.source()), amount);

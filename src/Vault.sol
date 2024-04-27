@@ -290,8 +290,8 @@ contract Vault is ReentrancyGuard, Pausable {
 
     // merge combines equal parts y + hodl tokens into the underlying asset.
     function merge(uint64 strike, uint256 amount) external nonReentrant {
-        require(hodlMulti.balanceOf(msg.sender, strike) >= amount);
-        require(yMulti.balanceOf(msg.sender, strike) >= amount);
+        require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "merge hodl balance");
+        require(yMulti.balanceOf(msg.sender, strike) >= amount, "merge y balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
         yMulti.burn(msg.sender, strike, amount);
