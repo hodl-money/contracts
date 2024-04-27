@@ -96,10 +96,10 @@ contract Vault is ReentrancyGuard, Pausable {
     HodlMultiToken public immutable hodlMulti;
     YMultiToken public immutable yMulti;
 
-    // keep track of deployed erc20 hodl tokens
+    // Keep track of deployed erc20 hodl tokens
     mapping (uint64 strike => IERC20 token) public deployments;
 
-    // track staked hodl tokens, which are eligible for redemption
+    // Track staked hodl tokens, which are eligible for redemption
     struct HodlStake {
         address user;
         uint64 strike;
@@ -118,28 +118,28 @@ contract Vault is ReentrancyGuard, Pausable {
     }
     mapping (uint32 stakeId => YStake) public yStakes;
 
-    // amount of y tokens staked in an epoch
+    // Amount of y tokens staked in an epoch
     mapping (uint32 epochId => uint256 amount) public yStaked;
 
-    // amount of y tokens staked in total
+    // Amount of y tokens staked in total
     uint256 public yStakedTotal;
 
-    // for terminated epoch, the final yield per token
+    // For terminated epoch, the final yield per token
     mapping (uint32 epochId => uint256 ypt) public terminalYieldPerToken;
 
-    // amount of total deposits
+    // Amount of total deposits
     uint256 public deposits;
 
-    // amount of yield claimed
+    // Amount of yield claimed
     uint256 public claimed;
 
-    // checkpointed yield per token, updated when deposits go up/down
+    // Checkpointed yield per token, updated when deposits go up/down
     uint256 public yieldPerTokenAcc;
 
-    // checkpointed cumulative yield, updated when deposits go up/down
+    // Checkpointed cumulative yield, updated when deposits go up/down
     uint256 public cumulativeYieldAcc;
 
-    // track yield per token and cumulative yield on a per epoch basis
+    // Track yield per token and cumulative yield on a per epoch basis
     struct EpochInfo {
         uint64 strike;
         bool closed;
@@ -423,7 +423,7 @@ contract Vault is ReentrancyGuard, Pausable {
         emit YUnstake(user, stk.strike, stakeId, amount);
     }
 
-    // Compte the yield per token of a particular stake of y tokens.
+    // _stakeYpt somputes the yield per token of a particular stake of y tokens.
     function _stakeYpt(uint32 stakeId) internal view returns (uint256) {
         YStake storage stk = yStakes[stakeId];
         if (epochs[stk.strike] == stk.epochId) {
