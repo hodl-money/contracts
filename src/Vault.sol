@@ -204,6 +204,9 @@ contract Vault is ReentrancyGuard, Pausable {
                 uint256 amount);
 
     constructor(address source_, address oracle_) ReentrancyGuard() Pausable() {
+        require(source_ != address(0));
+        require(oracle_ != address(0));
+
         source = IYieldSource(source_);
         oracle = IOracle(oracle_);
 

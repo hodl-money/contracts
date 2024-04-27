@@ -22,7 +22,9 @@ contract HodlToken is IERC20 {
     string private _name;
     string private _symbol;
 
-    constructor(address hodlMulti_, uint256 strike_) {
+    constructor(address hodlMulti_, uint64 strike_) {
+        require(hodlMulti_ != address(0));
+
         hodlMulti = HodlMultiToken(hodlMulti_);
         strike = strike_;
 

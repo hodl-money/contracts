@@ -87,6 +87,16 @@ contract Router is ReentrancyGuard {
                 address quoterV2_,
                 address aavePool_) ReentrancyGuard() {
 
+        require(vault_ != address(0));
+        require(weth_ != address(0));
+        require(steth_ != address(0));
+        require(wsteth_ != address(0));
+        require(uniswapV3Factory_ != address(0));
+        require(swapRouter_ != address(0));
+        require(manager_ != address(0));
+        require(quoterV2_ != address(0));
+        require(aavePool_ != address(0));
+
         vault = Vault(vault_);
         weth = IWrappedETH(weth_);
         steth = IERC20(steth_);

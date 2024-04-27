@@ -16,6 +16,8 @@ contract StETHYieldSource is IYieldSource, Ownable {
     address public immutable asset;
 
     constructor(address asset_) Ownable(msg.sender) {
+        require(asset_ != address(0));
+
         asset = asset_;
     }
 

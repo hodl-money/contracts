@@ -9,6 +9,8 @@ contract ChainlinkOracle is IOracle {
     AggregatorV3Interface public immutable feed;
 
     constructor(address feed_) {
+        require(feed_ != address(0));
+
         feed = AggregatorV3Interface(feed_);
     }
 
