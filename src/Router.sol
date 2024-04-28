@@ -39,13 +39,13 @@ contract Router is ReentrancyGuard {
     IWstETH public immutable wsteth;
 
     // Uniswap
-    IUniswapV3Factory public uniswapV3Factory;
-    ISwapRouter public swapRouter;
-    IQuoterV2 public quoterV2;
-    INonfungiblePositionManager public manager;
+    IUniswapV3Factory public immutable uniswapV3Factory;
+    ISwapRouter public immutable swapRouter;
+    IQuoterV2 public immutable quoterV2;
+    INonfungiblePositionManager public immutable manager;
 
     // Aave
-    IPool public aavePool;
+    IPool public immutable aavePool;
 
     // Events
     event AddLiquidity(address indexed user,
@@ -117,7 +117,7 @@ contract Router is ReentrancyGuard {
 
     // Add liquidity respecting the fact that 1 hodl token should never trade
     // above a price of 1 ETH.
-    function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) public nonReentrant payable {
+    function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) external nonReentrant payable {
         IERC20 hodlToken = vault.deployments(strike);
         require(address(hodlToken) != address(0), "no deployed ERC20");
 
@@ -172,7 +172,7 @@ contract Router is ReentrancyGuard {
         emit AddLiquidity(msg.sender, strike, delta, wethAmount);
     }
 
-    function previewHodlBuy(uint64 strike, uint256 amount) public returns (uint256) {
+    function previewHodlBuy(uint64 strike, uint256 amount) external returns (uint256) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -190,7 +190,7 @@ contract Router is ReentrancyGuard {
         return amountOut;
     }
 
-    function hodlBuy(uint64 strike, uint256 minOut) public nonReentrant payable returns (uint256) {
+    function hodlBuy(uint64 strike, uint256 minOut) external nonReentrant payable returns (uint256) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -218,7 +218,7 @@ contract Router is ReentrancyGuard {
         return out;
     }
 
-    function previewHodlSell(uint64 strike, uint256 amount) public returns (uint256) {
+    function previewHodlSell(uint64 strike, uint256 amount) external returns (uint256) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -236,14 +236,13 @@ contract Router is ReentrancyGuard {
         return out;
     }
 
-    function hodlSell(uint64 strike, uint256 amount, uint256 minOut) public nonReentrant payable returns (uint256) {
+    function hodlSell(uint64 strike, uint256 amount, uint256 minOut) external nonReentrant payable returns (uint256) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
         require(uniPool != address(0), "no uni pool");
 
-        token.transferFrom(msg.sender, address(this), amount);
-
+        token.safeTransferFrom(msg.sender, address(this), amount);
         token.forceApprove(address(address(swapRouter)), amount);
 
         ISwapRouter.ExactInputSingleParams memory params =
@@ -259,7 +258,7 @@ contract Router is ReentrancyGuard {
 
         uint256 out = swapRouter.exactInputSingle(params);
 
-        emit HodlBuy(msg.sender, strike, amount, out);
+        emit HodlSell(msg.sender, strike, amount, out);
 
         return out;
     }
@@ -310,7 +309,7 @@ contract Router is ReentrancyGuard {
         return loan * percent / 10_000;
     }
 
-    function previewYBuy(uint64 strike, uint256 value) public returns (uint256, uint256) {
+    function previewYBuy(uint64 strike, uint256 value) external returns (uint256, uint256) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -324,7 +323,7 @@ contract Router is ReentrancyGuard {
         return (out, loan);
     }
 
-    function yBuy(uint64 strike, uint256 loan, uint256 minOut) public nonReentrant payable returns (uint256) {
+    function yBuy(uint64 strike, uint256 loan, uint256 minOut) external nonReentrant payable returns (uint256) {
         uint256 value = msg.value;
         bytes memory data = abi.encode(LOAN_Y_BUY, msg.sender, strike, value + loan, minOut);
 
@@ -381,7 +380,7 @@ contract Router is ReentrancyGuard {
         return true;
     }
 
-    function previewYSell(uint64 strike, uint256 amount) public returns (uint256, uint256) {
+    function previewYSell(uint64 strike, uint256 amount) external returns (uint256, uint256) {
         IERC20 token = vault.deployments(strike);
 
         // The y token sale works by buying hodl tokens and merging y + hodl
@@ -432,7 +431,7 @@ contract Router is ReentrancyGuard {
     function ySell(uint64 strike,
                    uint256 loan,
                    uint256 amount,
-                   uint256 minOut) public nonReentrant returns (uint256) {
+                   uint256 minOut) external nonReentrant returns (uint256) {
 
         // The y token sale has these steps:
         //
@@ -442,7 +441,7 @@ contract Router is ReentrancyGuard {
         //  4. Sell steth to pay back flash loan
         //  5. Remaining steth is profit for user
         //
-        // The loan size required is determined via `previewYSell`.
+        // The loan size required is determined via `previewYSell.`
 
         bytes memory data = abi.encode(LOAN_Y_SELL, msg.sender, strike, amount);
 
@@ -451,7 +450,7 @@ contract Router is ReentrancyGuard {
         uint256 profit = IERC20(address(weth)).balanceOf(address(this)) - before;
         require(profit >= minOut, "y sell min out");
 
-        IERC20(address(weth)).transfer(msg.sender, profit);
+        IERC20(address(weth)).safeTransfer(msg.sender, profit);
 
         emit YSell(msg.sender, strike, amount, profit, loan);
 

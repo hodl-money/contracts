@@ -155,10 +155,6 @@ contract Vault is ReentrancyGuard, Pausable {
     event DeployERC20(uint64 indexed strike,
                       address token);
 
-    event Triggered(uint64 indexed strike,
-                    uint32 indexed epoch,
-                    uint256 timestamp);
-
     event Mint(address indexed user,
                uint256 indexed strike,
                uint256 amount);
@@ -212,7 +208,7 @@ contract Vault is ReentrancyGuard, Pausable {
         yMulti = new YMultiToken("", address(this));
     }
 
-    function deployERC20(uint64 strike) public nonReentrant returns (address) {
+    function deployERC20(uint64 strike) external nonReentrant returns (address) {
         if (address(deployments[strike]) != address(0)) {
             return address(deployments[strike]);
         }
@@ -377,7 +373,7 @@ contract Vault is ReentrancyGuard, Pausable {
     // yStake takes y tokens and stakes them, which makes those tokens receive
     // yield. Only staked y tokens receive yield. This is to enable proper yield
     // accounting in relation to hodl token redemptions.
-    function yStake(uint64 strike, uint256 amount, address user) public nonReentrant returns (uint32) {
+    function yStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint32) {
         require(yMulti.balanceOf(msg.sender, strike) >= amount, "y stake balance");
         uint32 epochId = epochs[strike];
 
@@ -406,7 +402,7 @@ contract Vault is ReentrancyGuard, Pausable {
     // yUnstake takes a stake and returns all the y tokens to the user. For
     // simplicity, partial unstakes are not possible. The user may unstake
     // entirely, and then re-stake a portion of his tokens.
-    function yUnstake(uint32 stakeId, address user) public {
+    function yUnstake(uint32 stakeId, address user) external {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y unstake user");
         require(stk.amount > 0, "y unstake zero");
@@ -458,7 +454,7 @@ contract Vault is ReentrancyGuard, Pausable {
     }
 
     // claim transfers to the user his claimable yield.
-    function claim(uint32 stakeId) public nonReentrant {
+    function claim(uint32 stakeId) external nonReentrant {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y claim user");
 
@@ -471,7 +467,7 @@ contract Vault is ReentrancyGuard, Pausable {
 
     // hodlStake takes some hodl tokens, and stakes them. This make them
     // eligible for redemption when the strike price hits.
-    function hodlStake(uint64 strike, uint256 amount, address user) public nonReentrant returns (uint32) {
+    function hodlStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint32) {
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "hodl stake balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
@@ -490,7 +486,7 @@ contract Vault is ReentrancyGuard, Pausable {
 
     // hodlUnstake can be used to return some portion of staked tokens to the
     // user.
-    function hodlUnstake(uint32 stakeId, uint256 amount, address user) public nonReentrant {
+    function hodlUnstake(uint32 stakeId, uint256 amount, address user) external nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
         require(stk.user == msg.sender, "hodl unstake user");
         require(stk.amount >= amount, "hodl unstake amount");
