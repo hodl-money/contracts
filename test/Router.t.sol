@@ -32,6 +32,8 @@ contract RouterTest is BaseTest {
     INonfungiblePositionManager public manager;
 
     uint64 strike1 = 2000_00000000;
+    uint64 strike2 = 4000_00000000;
+    uint64 strike3 = 8000_00000000;
 
     function setUp() public {
         init();
@@ -121,20 +123,37 @@ contract RouterTest is BaseTest {
     function testAddLiquidity() public {
         initRouter();
 
-        oracle.setPrice(strike1 - 1);
+        // Test a few times so both sides of branch in addLiquidity() are executed
+        _testAddLiquidityForStrike(1000_00000001);
+        _testAddLiquidityForStrike(2000_00000001);
+        _testAddLiquidityForStrike(3000_00000001);
+    }
+
+    function _testAddLiquidityForStrike(uint64 strike) private {
+        oracle.setPrice(strike - 1);
 
         vm.deal(alice, 1 ether);
 
-        IERC20 hodlToken = vault.deployments(strike1);
+        vault.deployERC20(strike);
+
+        IERC20 hodlToken = vault.deployments(strike);
         (address token0, address token1) = address(hodlToken) < weth
             ? (address(hodlToken), weth)
             : (weth, address(hodlToken));
-        uniswapV3Pool = IUniswapV3Pool(IUniswapV3Factory(uniswapV3Factory).getPool(token0, token1, 3000));
+
+        IUniswapV3Pool(IUniswapV3Factory(uniswapV3Factory).createPool(token0, token1, 3000));
+        IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(uniswapV3Factory).getPool(token0, token1, 3000));
+        uint160 initPrice = 73044756656988589698425290750;
+        uint160 initPriceInv = 85935007831751276823975034880;
+        pool.initialize(address(hodlToken) < weth ? initPrice : initPriceInv);
 
         vm.startPrank(alice);
-        assertEq(uniswapV3Pool.liquidity(), 59065148190976308112);
-        router.addLiquidity{value: 1 ether}(strike1, 0.5 ether, 1800);
-        assertEq(uniswapV3Pool.liquidity(), 64971663010073938924);
+        assertEq(pool.liquidity(), 0);
+        router.addLiquidity{value: 1 ether}(strike, 0.5 ether, 1800);
+        assertClose(pool.liquidity(),
+                    5906514819097630812,
+                    1e6);
+
         vm.stopPrank();
     }
 

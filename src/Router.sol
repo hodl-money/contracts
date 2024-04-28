@@ -106,10 +106,6 @@ contract Router is ReentrancyGuard {
         aavePool = IPool(aavePool_);
     }
 
-    function _min(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a < b ? a : b;
-    }
-
     function pool(uint64 strike) public view returns (address) {
         IERC20 hodlToken = vault.deployments(strike);
         (address token0, address token1) = address(hodlToken) < address(weth)
@@ -168,8 +164,8 @@ contract Router is ReentrancyGuard {
             recipient: msg.sender,
             deadline: block.timestamp + 1 });
 
-        IERC20(params.token0).approve(address(manager), token0Amount);
-        IERC20(params.token1).approve(address(manager), token1Amount);
+        IERC20(params.token0).forceApprove(address(manager), token0Amount);
+        IERC20(params.token1).forceApprove(address(manager), token1Amount);
 
         manager.mint(params);
 
@@ -202,7 +198,7 @@ contract Router is ReentrancyGuard {
 
         weth.deposit{value: msg.value}();
 
-        IERC20(address(weth)).approve(address(address(swapRouter)), msg.value);
+        IERC20(address(weth)).forceApprove(address(address(swapRouter)), msg.value);
 
         ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
@@ -248,7 +244,7 @@ contract Router is ReentrancyGuard {
 
         token.transferFrom(msg.sender, address(this), amount);
 
-        token.approve(address(address(swapRouter)), amount);
+        token.forceApprove(address(address(swapRouter)), amount);
 
         ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
@@ -365,7 +361,7 @@ contract Router is ReentrancyGuard {
         amount = _assertMaxDiffAndTakeSmaller(amount, delta, 1e6);
 
         // sell hodl tokens to repay debt
-        token.approve(address(swapRouter), amount);
+        token.forceApprove(address(swapRouter), amount);
 
         ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
@@ -380,7 +376,7 @@ contract Router is ReentrancyGuard {
         swapRouter.exactInputSingle(params);
 
         // approve repayment
-        IERC20(address(weth)).approve(address(aavePool), loan + fee);
+        IERC20(address(weth)).forceApprove(address(aavePool), loan + fee);
 
         return true;
     }
@@ -472,7 +468,7 @@ contract Router is ReentrancyGuard {
         require(address(token) != address(0), "no deployed ERC20");
 
         // Use loaned weth to buy hodl token
-        IERC20(address(weth)).approve(address(swapRouter), amount);
+        IERC20(address(weth)).forceApprove(address(swapRouter), amount);
         ISwapRouter.ExactOutputSingleParams memory params  =
             ISwapRouter.ExactOutputSingleParams({
                 tokenIn: address(weth),
@@ -491,12 +487,12 @@ contract Router is ReentrancyGuard {
         // Merge y + hodl for steth, wrap into wsteth
         vault.merge(strike, amount);
         uint256 bal = steth.balanceOf(address(this));
-        steth.approve(address(wsteth), bal);
+        steth.forceApprove(address(wsteth), bal);
         wsteth.wrap(bal);
 
         // Sell wsteth for weth
         bal = IERC20(wsteth).balanceOf(address(this));
-        wsteth.approve(address(swapRouter), bal);
+        IERC20(wsteth).forceApprove(address(swapRouter), bal);
         ISwapRouter.ExactInputSingleParams memory swapParams =
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(wsteth),
@@ -510,7 +506,7 @@ contract Router is ReentrancyGuard {
         swapRouter.exactInputSingle(swapParams);
 
         // Approve repayment using funds from sale, remainder will go to user
-        IERC20(address(weth)).approve(address(aavePool), loan + fee);
+        IERC20(address(weth)).forceApprove(address(aavePool), loan + fee);
 
         return true;
     }

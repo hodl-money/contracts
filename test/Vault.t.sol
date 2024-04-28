@@ -885,6 +885,7 @@ contract VaultTest is BaseTest {
         assertClose(IERC20(steth).balanceOf(degen), 1 ether, 10);
         assertHodlStake(stake1, alice, 0);
         assertHodlStake(stake4, chad, 1 ether);
+        assertFalse(vault.canRedeem(stake1));
     }
 
     function testMerge() public {
