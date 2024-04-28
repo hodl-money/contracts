@@ -594,6 +594,68 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
     }
 
+    function testRedeem() public {
+        initVault();
+
+        // Alice mints hodl
+        vm.startPrank(alice);
+        uint32 epoch1 = vault.nextId();
+        vault.mint{value: 1 ether}(strike1);
+        vm.stopPrank();
+
+        // Bob mints hodl
+        vm.startPrank(bob);
+        vault.mint{value: 2 ether}(strike1);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 2 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike1), 2 ether, 10);
+
+        // Alice stakes hodl + y
+        vm.startPrank(alice);
+        uint32 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
+        vault.yStake(strike1, 1 ether - 2, alice);
+        vm.stopPrank();
+
+        // Bob stakes hodl + y
+        vm.startPrank(bob);
+        uint32 bobHodlStake = vault.hodlStake(strike1, 2 ether - 2, bob);
+        vault.yStake(strike1, 2 ether - 2, bob);
+        vm.stopPrank();
+
+        assertClose(vault.yStaked(epoch1), 3 ether, 10);
+        assertClose(vault.yStakedTotal(), 3 ether, 10);
+
+        // Price moves to above strike1
+        oracle.setPrice(strike1 + 1);
+
+        // Alice claims staked hodl
+        vm.startPrank(alice);
+        vault.redeem(aliceHodlStake, 1 ether - 2);
+        vm.stopPrank();
+
+        // Price moves back below strike1
+        oracle.setPrice(strike1 - 1);
+
+        // Chad mints hodl tokens
+        vm.startPrank(chad);
+        vault.mint{value: 4 ether}(strike1);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 4 ether, 10);
+        assertClose(vault.yMulti().balanceOf(chad, strike1), 4 ether, 10);
+
+        // Bob claims stake from epoch 1, we are currently in epoch 2
+        vm.startPrank(bob);
+        vault.redeem(bobHodlStake, 2 ether - 2);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 4 ether, 10);
+        assertClose(vault.yMulti().balanceOf(chad, strike1), 4 ether, 10);
+    }
+
     function testRedeemTokens() public {
         initVault();
 
@@ -631,8 +693,6 @@ contract VaultTest is BaseTest {
     function testMultipleRedeems() public {
         initVault();
         oracle.setPrice(strike1 - 1);
-
-        // TODO: add ybETH / yield verification
 
         // Alice mints + stakes hodl
         vm.startPrank(alice);
@@ -826,72 +886,6 @@ contract VaultTest is BaseTest {
         assertHodlStake(stake1, alice, 0);
         assertHodlStake(stake4, chad, 1 ether);
     }
-
-    // Test that redeem function correctly handles accounting
-    function testRedeemAccounting() public {
-        initVault();
-
-        // Alice mints HODL tokens: 1ETH @ strike1, epoch1
-        vm.startPrank(alice);
-        uint32 epoch1 = vault.nextId();
-        vault.mint{value: 1 ether}(strike1);
-        vm.stopPrank();
-
-        // Bob mints HODL tokens: 2 ETH @ strike1, epoch1
-        vm.startPrank(bob);
-        vault.mint{value: 2 ether}(strike1);
-        vm.stopPrank();
-
-        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
-        assertClose(vault.hodlMulti().balanceOf(bob, strike1), 2 ether, 10);
-        assertClose(vault.yMulti().balanceOf(alice, strike1), 1 ether, 10);
-        assertClose(vault.yMulti().balanceOf(bob, strike1), 2 ether, 10);
-
-        // Alice stakes HODL & ytokens
-        vm.startPrank(alice);
-        uint32 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
-        vault.yStake(strike1, 1 ether - 2, alice);
-        vm.stopPrank();
-
-        // Bob stakes HODL & yTokens
-        vm.startPrank(bob);
-        uint32 bobHodlStake = vault.hodlStake(strike1, 2 ether - 2, bob);
-        vault.yStake(strike1, 2 ether - 2, bob);
-        vm.stopPrank();
-
-        // Epoch 1 includes both Alice and Bob's stakes
-        assertClose(vault.yStaked(epoch1), 3 ether, 10);
-
-        assertClose(vault.yStakedTotal(), 3 ether, 10);
-
-        // Price moves to above strike1
-        oracle.setPrice(strike1 + 1);
-
-        // Alice claims staked HODL tokens
-        vm.startPrank(alice);
-        vault.redeem(aliceHodlStake, 1 ether - 2);
-        vm.stopPrank();
-
-        // Price moves back below strike1
-        oracle.setPrice(strike1 - 1);
-
-        // Chad mints HODL tokens: 4 ETH @ strike1, epoch2
-        vm.startPrank(chad);
-        vault.mint{value: 4 ether}(strike1);
-        vm.stopPrank();
-
-        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 4 ether, 10);
-        assertClose(vault.yMulti().balanceOf(chad, strike1), 4 ether, 10);
-
-        // Bob claims stake from epoch 1, we are currently in epoch 2
-        vm.startPrank(bob);
-        vault.redeem(bobHodlStake, 2 ether - 2);
-        vm.stopPrank();
-
-        assertClose(vault.hodlMulti().balanceOf(chad, strike1), 4 ether, 10);
-        assertClose(vault.yMulti().balanceOf(chad, strike1), 4 ether, 10);
-    }   
-
 
     function testMerge() public {
         initVault();
