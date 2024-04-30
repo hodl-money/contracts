@@ -34,7 +34,6 @@ contract YMultiToken is ERC1155, Ownable {
                      uint256 seq);
 
     constructor(string memory uri_, address vault_) Ownable(msg.sender) ERC1155(uri_) {
-
         require(vault_ != address(0));
 
         vault = Vault(vault_);

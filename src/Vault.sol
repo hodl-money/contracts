@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { Pausable } from  "@openzeppelin/contracts/utils/Pausable.sol";
 
 import { IOracle } from "./interfaces/IOracle.sol";
 import { IYieldSource } from "./interfaces/IYieldSource.sol";
@@ -83,7 +82,7 @@ import { HodlToken } from  "./single/HodlToken.sol";
 // * Naming
 // In code, 'hodl' tokens refer to plETH, and 'y' tokens refer to ybETH.
 //
-contract Vault is ReentrancyGuard, Pausable {
+contract Vault is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION_FACTOR = 1 ether;
@@ -149,7 +148,7 @@ contract Vault is ReentrancyGuard, Pausable {
     mapping (uint32 epochId => EpochInfo) infos;
 
     // Map strike to active epoch ID
-    mapping (uint64 staked => uint32 epochId) public epochs;
+    mapping (uint64 strike => uint32 epochId) public epochs;
 
     // Events
     event DeployERC20(uint64 indexed strike,
@@ -197,7 +196,7 @@ contract Vault is ReentrancyGuard, Pausable {
                 uint32 indexed stakeId,
                 uint256 amount);
 
-    constructor(address source_, address oracle_) ReentrancyGuard() Pausable() {
+    constructor(address source_, address oracle_) ReentrancyGuard() {
         require(source_ != address(0));
         require(oracle_ != address(0));
 
@@ -209,9 +208,7 @@ contract Vault is ReentrancyGuard, Pausable {
     }
 
     function deployERC20(uint64 strike) external nonReentrant returns (address) {
-        if (address(deployments[strike]) != address(0)) {
-            return address(deployments[strike]);
-        }
+        require(address(deployments[strike]) == address(0), "already deployed");
 
         HodlToken hodl = new HodlToken(address(hodlMulti), strike);
         hodlMulti.authorize(address(hodl));
@@ -238,7 +235,7 @@ contract Vault is ReentrancyGuard, Pausable {
         cumulativeYieldAcc = total;
     }
 
-    function mint(uint64 strike) external nonReentrant whenNotPaused payable {
+    function mint(uint64 strike) external nonReentrant payable {
         require(oracle.price(0) < strike, "strike too low");
 
         uint256 amount = source.deposit{value: msg.value}();
@@ -265,16 +262,19 @@ contract Vault is ReentrancyGuard, Pausable {
             return false;
         }
 
-        // Check if price is currently above strike
+        // Check the two conditions that enable redemption:
+
+        // (1) If price is currently above strike
         if (oracle.price(0) >= stk.strike) {
             return true;
         }
 
-        // Check if this is a passed epoch
+        // (2) If this is a passed epoch
         if (stk.epochId != epochs[stk.strike]) {
             return true;
         }
 
+        // Neither is true, so can't redeem
         return false;
     }
 
@@ -402,7 +402,7 @@ contract Vault is ReentrancyGuard, Pausable {
     // yUnstake takes a stake and returns all the y tokens to the user. For
     // simplicity, partial unstakes are not possible. The user may unstake
     // entirely, and then re-stake a portion of his tokens.
-    function yUnstake(uint32 stakeId, address user) external {
+    function yUnstake(uint32 stakeId, address user) external nonReentrant {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y unstake user");
         require(stk.amount > 0, "y unstake zero");

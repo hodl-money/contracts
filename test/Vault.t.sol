@@ -307,8 +307,12 @@ contract VaultTest is BaseTest {
 
         address hodl1Address = vault.deployERC20(strike1);
 
-        // Deploys should be saved
-        assertEq(hodl1Address, vault.deployERC20(strike1));
+        // Can only deploy once
+        vm.expectRevert("already deployed");
+        vault.deployERC20(strike1);
+
+        assertEq(hodl1Address, 0xA11d35fE4b9Ca9979F2FF84283a9Ce190F60Cd00);
+        assertEq(hodl1Address, address(vault.deployments(strike1)));
 
         HodlToken hodl1 = HodlToken(hodl1Address);
 
