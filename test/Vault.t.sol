@@ -946,6 +946,12 @@ contract VaultTest is BaseTest {
         payable(0).transfer(treasury.balance);
         vm.stopPrank();
 
+        {
+            (uint256 value, uint256 feeValue) = vault.previewMint(10 ether);
+            assertEq(value, 10 ether);
+            assertEq(feeValue, 0);
+        }
+
         // Mint with 0 fees hodl tokens
         vm.startPrank(alice);
         vault.mint{value: 3 ether}(strike1);
@@ -983,6 +989,12 @@ contract VaultTest is BaseTest {
         vault.setFee(15_01);
 
         vault.setFee(10_00);
+
+        {
+            (uint256 value, uint256 feeValue) = vault.previewMint(10 ether);
+            assertEq(value, 9 ether);
+            assertEq(feeValue, 1 ether);
+        }
 
         vm.startPrank(alice);
         vault.mint{value: 30 ether}(strike1);

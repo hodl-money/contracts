@@ -266,6 +266,15 @@ contract Vault is ReentrancyGuard, Ownable {
         cumulativeYieldAcc = total;
     }
 
+    function previewMint(uint256 value) external view returns (uint256, uint256) {
+        if (fee == 0) {
+            return (value, 0);
+        } else {
+            uint256 feeValue = value * fee / FEE_BASIS;
+            return (value - feeValue, feeValue);
+        }
+    }
+
     function mint(uint64 strike) external nonReentrant payable {
         require(oracle.price(0) < strike, "strike too low");
 
