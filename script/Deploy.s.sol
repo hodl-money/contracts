@@ -50,7 +50,9 @@ contract DeployScript is BaseScript {
         oracle.setPrice(1999_00000000);
 
         StETHYieldSource source = new StETHYieldSource(steth);
-        vault = new Vault(address(source), address(oracle));
+        vault = new Vault(address(source),
+                          address(oracle),
+                          deployerAddress);
         source.transferOwnership(address(vault));
 
         if (true) {

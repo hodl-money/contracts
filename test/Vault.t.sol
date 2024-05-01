@@ -24,15 +24,18 @@ contract VaultTest is BaseTest {
     uint64 strike2 = 3000_00000000;
     uint64 strike3 = 4000_00000000;
 
+    address public treasury;
+
     function setUp() public {
         init();
     }
 
     function initVault() public {
+        treasury = createUser(1000);
         oracle = new FakeOracle();
         oracle.setPrice(1999_00000000);
         StETHYieldSource source = new StETHYieldSource(steth);
-        vault = new Vault(address(source), address(oracle));
+        vault = new Vault(address(source), address(oracle), treasury);
         source.transferOwnership(address(vault));
     }
 
@@ -279,7 +282,7 @@ contract VaultTest is BaseTest {
     function testWithChainlinkOracle() public {
         ChainlinkOracle chainlink = new ChainlinkOracle(ethPriceFeed);
         StETHYieldSource source = new StETHYieldSource(steth);
-        vault = new Vault(address(source), address(chainlink));
+        vault = new Vault(address(source), address(chainlink), address(this));
         source.transferOwnership(address(vault));
 
         // Verify price at the forked block
@@ -933,6 +936,77 @@ contract VaultTest is BaseTest {
         vm.startPrank(bob);
         vm.expectRevert("merge hodl balance");
         vault.merge(strike2, 2 ether);
+    }
+
+    function testFees() public {
+        initVault();
+
+        // Drain treasury
+        vm.startPrank(treasury);
+        payable(0).transfer(treasury.balance);
+        vm.stopPrank();
+
+        // Mint with 0 fees hodl tokens
+        vm.startPrank(alice);
+        vault.mint{value: 3 ether}(strike1);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vault.mint{value: 4 ether}(strike2);
+        vm.stopPrank();
+
+        vm.startPrank(chad);
+        vault.mint{value: 8 ether}(strike3);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 3 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 3 ether, 10);
+
+        assertClose(vault.hodlMulti().balanceOf(bob, strike2), 4 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike2), 4 ether, 10);
+
+        assertClose(vault.hodlMulti().balanceOf(chad, strike3), 8 ether, 10);
+        assertClose(vault.yMulti().balanceOf(chad, strike3), 8 ether, 10);
+
+        assertEq(treasury.balance, 0);
+
+        // Set a fee, verify balances
+        vm.startPrank(alice);
+        vm.expectRevert();
+        vault.setTreasury(alice);
+        vm.stopPrank();
+
+        vm.expectRevert("zero address");
+        vault.setTreasury(address(0));
+
+        vm.expectRevert("max fee");
+        vault.setFee(15_01);
+
+        vault.setFee(10_00);
+
+        vm.startPrank(alice);
+        vault.mint{value: 30 ether}(strike1);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vault.mint{value: 40 ether}(strike2);
+        vm.stopPrank();
+
+        vm.startPrank(chad);
+        vault.mint{value: 80 ether}(strike3);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 30 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 30 ether, 10);
+
+        assertClose(vault.hodlMulti().balanceOf(bob, strike2), 40 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike2), 40 ether, 10);
+
+        assertClose(vault.hodlMulti().balanceOf(chad, strike3), 80 ether, 10);
+        assertClose(vault.yMulti().balanceOf(chad, strike3), 80 ether, 10);
+
+        assertEq(treasury.balance, 15 ether);
+
     }
 
     function simulateYield(uint256 amount) internal {

@@ -32,7 +32,7 @@ contract HodlTokenTest is BaseTest {
         oracle = new FakeOracle();
         oracle.setPrice(1999_00000000);
         StETHYieldSource source = new StETHYieldSource(steth);
-        vault = new Vault(address(source), address(oracle));
+        vault = new Vault(address(source), address(oracle), address(this));
         source.transferOwnership(address(vault));
     }
 

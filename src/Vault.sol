@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from  "@openzeppelin/contracts/access/Ownable.sol";
 
 import { IOracle } from "./interfaces/IOracle.sol";
 import { IYieldSource } from "./interfaces/IYieldSource.sol";
@@ -82,18 +83,24 @@ import { HodlToken } from  "./single/HodlToken.sol";
 // * Naming
 // In code, 'hodl' tokens refer to plETH, and 'y' tokens refer to ybETH.
 //
-contract Vault is ReentrancyGuard {
+contract Vault is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION_FACTOR = 1 ether;
 
+    uint256 public constant FEE_BASIS = 100_00;
+    uint256 public constant MAX_FEE = 15_00;  // 15%
+
     uint32 public nextId = 1;
+    uint256 public fee = 0;
 
     IYieldSource public immutable source;
     IOracle public immutable oracle;
 
     HodlMultiToken public immutable hodlMulti;
     YMultiToken public immutable yMulti;
+
+    address public treasury;
 
     // Keep track of deployed erc20 hodl tokens
     mapping (uint64 strike => IERC20 token) public deployments;
@@ -151,6 +158,10 @@ contract Vault is ReentrancyGuard {
     mapping (uint64 strike => uint32 epochId) public epochs;
 
     // Events
+    event SetTreasury(address treasury);
+
+    event SetFee(uint256 fee);
+
     event DeployERC20(uint64 indexed strike,
                       address token);
 
@@ -196,15 +207,35 @@ contract Vault is ReentrancyGuard {
                 uint32 indexed stakeId,
                 uint256 amount);
 
-    constructor(address source_, address oracle_) ReentrancyGuard() {
+    constructor(address source_,
+                address oracle_,
+                address treasury_) ReentrancyGuard() Ownable(msg.sender) {
         require(source_ != address(0));
         require(oracle_ != address(0));
+        require(treasury_ != address(0));
 
         source = IYieldSource(source_);
         oracle = IOracle(oracle_);
+        treasury = treasury_;
 
         hodlMulti = new HodlMultiToken("");
         yMulti = new YMultiToken("", address(this));
+    }
+
+    function setTreasury(address treasury_) external nonReentrant onlyOwner {
+        require(treasury_ != address(0), "zero address");
+
+        treasury = treasury_;
+
+        emit SetTreasury(treasury);
+    }
+
+    function setFee(uint256 fee_) external nonReentrant onlyOwner {
+        require(fee_ <= MAX_FEE, "max fee");
+
+        fee = fee_;
+
+        emit SetFee(fee);
     }
 
     function deployERC20(uint64 strike) external nonReentrant returns (address) {
@@ -238,7 +269,15 @@ contract Vault is ReentrancyGuard {
     function mint(uint64 strike) external nonReentrant payable {
         require(oracle.price(0) < strike, "strike too low");
 
-        uint256 amount = source.deposit{value: msg.value}();
+        uint256 value = msg.value;
+        uint256 feeValue = value * fee / FEE_BASIS;
+        if (feeValue > 0) {
+            payable(treasury).transfer(feeValue);
+            value -= feeValue;
+        }
+
+        // Account for off-by-one deposit in stETH
+        uint256 amount = source.deposit{value: value}();
         deposits += amount;
 
         // Create the epoch if needed

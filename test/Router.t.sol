@@ -43,7 +43,7 @@ contract RouterTest is BaseTest {
         // Set up: deploy vault, mint some hodl for alice, make it redeemable
         oracle = new FakeOracle();
         StETHYieldSource source = new StETHYieldSource(steth);
-        vault = new Vault(address(source), address(oracle));
+        vault = new Vault(address(source), address(oracle), address(this));
         source.transferOwnership(address(vault));
         oracle.setPrice(strike1 - 1);
         address hodl1 = vault.deployERC20(strike1);

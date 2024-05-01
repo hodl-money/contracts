@@ -29,7 +29,6 @@ contract BaseScript is Script {
     function init() public {
         if (eq(vm.envString("NETWORK"), "mainnet")) {
             pk = vm.envUint("MAINNET_PRIVATE_KEY");
-            deployerAddress = vm.envAddress("MAINNET_DEPLOYER_ADDRESS");
 
             steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
             wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
@@ -38,7 +37,6 @@ contract BaseScript is Script {
 
         } else if (eq(vm.envString("NETWORK"), "localhost")) {
             pk = vm.envUint("LOCALHOST_PRIVATE_KEY");
-            deployerAddress = vm.envAddress("LOCALHOST_DEPLOYER_ADDRESS");
 
             // Mainnet addresses
             steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
@@ -48,7 +46,6 @@ contract BaseScript is Script {
 
         } else if (eq(vm.envString("NETWORK"), "fork")) {
             pk = vm.envUint("FORK_PRIVATE_KEY");
-            deployerAddress = vm.envAddress("FORK_DEPLOYER_ADDRESS");
 
             // Mainnet addresses
             steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
@@ -56,5 +53,6 @@ contract BaseScript is Script {
             ethPriceFeed = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
             weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
         }
-    }    
+        deployerAddress = vm.addr(pk);
+    }
 }
