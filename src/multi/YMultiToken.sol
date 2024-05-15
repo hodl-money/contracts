@@ -68,7 +68,8 @@ contract YMultiToken is ERC1155, Ownable {
 
     function burnStrike(uint256 strike) public {
         require(msg.sender == address(vault), "only vault");
-        strikeSeqs[strike]++;
+
+        strikeSeqs[strike] = nextId++;
 
         emit BurnStrike(strike, strikeSeqs[strike] - 1);
     }

@@ -1051,6 +1051,61 @@ contract VaultTest is BaseTest {
         assertEq(vault.claimable(stake2), 0);
     }
 
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/20
+    function testSeqIncrement() public {
+        initVault();
+
+        // Alice mints hodl
+        vm.startPrank(alice);
+        uint32 epoch1 = vault.nextId();
+        vault.mint{value: 1 ether}(strike1);
+        vm.stopPrank();
+
+        // Bob mints hodl
+        vm.startPrank(bob);
+        vault.mint{value: 2 ether}(strike2);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.hodlMulti().balanceOf(bob, strike2), 2 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 1 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike2), 2 ether, 10);
+
+        // Alice stakes hodl
+        vm.startPrank(alice);
+        uint32 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
+        vm.stopPrank();
+
+        // Bob stakes hodl
+        vm.startPrank(bob);
+        uint32 bobHodlStake = vault.hodlStake(strike2, 1 ether - 2, bob);
+        vm.stopPrank();
+
+        // Price moves to above strike1
+        oracle.setPrice(strike2 + 1);
+
+        // Seq before should be 1
+        assertEq(vault.yMulti().strikeSeqs(strike1), 1);
+        assertEq(vault.yMulti().strikeSeqs(strike2), 2);
+
+        // Alice claims staked hodl
+        vm.startPrank(alice);
+        vault.redeem(aliceHodlStake, 1 ether - 2);
+        vm.stopPrank();
+
+        // Bob claims staked hodl
+        vm.startPrank(bob);
+        vault.redeem(bobHodlStake, 1 ether - 2);
+        vm.stopPrank();
+
+        assertEq(vault.yMulti().balanceOf(alice, strike1), 0);
+        assertEq(vault.yMulti().balanceOf(bob, strike2), 0);
+
+        // Seq before should be 3 and 4, because two redemptions happened
+        assertEq(vault.yMulti().strikeSeqs(strike1), 3);
+        assertEq(vault.yMulti().strikeSeqs(strike2), 4);
+    }
+
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
         IERC20(steth).transfer(address(vault.source()), amount);
