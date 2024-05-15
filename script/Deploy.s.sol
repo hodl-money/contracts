@@ -134,8 +134,10 @@ contract DeployScript is BaseScript {
             amount1Min: 0,
             recipient: deployerAddress,
             deadline: block.timestamp + 1 days });
+
         IERC20(params.token0).approve(address(manager), amount);
         IERC20(params.token1).approve(address(manager), amount);
+
         manager.mint(params);
     }
 }

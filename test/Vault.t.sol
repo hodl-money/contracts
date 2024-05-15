@@ -1018,7 +1018,6 @@ contract VaultTest is BaseTest {
         assertClose(vault.yMulti().balanceOf(chad, strike3), 80 ether, 10);
 
         assertEq(treasury.balance, 15 ether);
-
     }
 
     function simulateYield(uint256 amount) internal {

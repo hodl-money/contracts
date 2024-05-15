@@ -39,13 +39,13 @@ contract Router is ReentrancyGuard {
     IWstETH public immutable wsteth;
 
     // Uniswap
-    IUniswapV3Factory public immutable uniswapV3Factory;
-    ISwapRouter public immutable swapRouter;
-    IQuoterV2 public immutable quoterV2;
-    INonfungiblePositionManager public immutable manager;
+    IUniswapV3Factory public uniswapV3Factory;
+    ISwapRouter public swapRouter;
+    IQuoterV2 public quoterV2;
+    INonfungiblePositionManager public manager;
 
     // Aave
-    IPool public immutable aavePool;
+    IPool public aavePool;
 
     // Events
     event AddLiquidity(address indexed user,
@@ -56,7 +56,8 @@ contract Router is ReentrancyGuard {
     event HodlBuy(address indexed user,
                   uint64 indexed strike,
                   uint256 amountIn,
-                  uint256 amountOut);
+                  uint256 amountOut,
+                  uint32 stakeId);
 
     event HodlSell(address indexed user,
                    uint64 indexed strike,
@@ -190,7 +191,7 @@ contract Router is ReentrancyGuard {
         return amountOut;
     }
 
-    function hodlBuy(uint64 strike, uint256 minOut) external nonReentrant payable returns (uint256) {
+    function hodlBuy(uint64 strike, uint256 minOut, bool shouldStake) external nonReentrant payable returns (uint256, uint32) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -200,22 +201,29 @@ contract Router is ReentrancyGuard {
 
         IERC20(address(weth)).forceApprove(address(address(swapRouter)), msg.value);
 
+        address receiver = shouldStake ? address(this) : msg.sender;
+
         ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(weth),
                 tokenOut: address(token),
                 fee: FEE,
-                recipient: address(this),
+                recipient: receiver,
                 deadline: block.timestamp + 1,
                 amountIn: msg.value,
                 amountOutMinimum: minOut,
                 sqrtPriceLimitX96: 0 });
 
         uint256 out = swapRouter.exactInputSingle(params);
+        uint32 stakeId = 0;
 
-        emit HodlBuy(msg.sender, strike, msg.value, out);
+        if (shouldStake) {
+            stakeId = vault.hodlStake(strike, out, msg.sender);
+        }
 
-        return out;
+        emit HodlBuy(msg.sender, strike, msg.value, out, stakeId);
+
+        return (out, stakeId);
     }
 
     function previewHodlSell(uint64 strike, uint256 amount) external returns (uint256) {
@@ -351,7 +359,7 @@ contract Router is ReentrancyGuard {
         // mint hodl + y tokens
         weth.withdraw(loan);
 
-        require(address(this).balance == amount, "expected balance == amount");
+        require(address(this).balance >= amount, "expected balance >= amount");
         uint256 before = token.balanceOf(address(this));
         vault.mint{value: amount}(strike);
         uint256 delta = token.balanceOf(address(this)) - before;

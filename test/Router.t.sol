@@ -87,8 +87,8 @@ contract RouterTest is BaseTest {
         vm.startPrank(alice);
 
         for (uint256 i = 0; i < 5; i++) {
-            uint256 amountHodl = router.hodlBuy{value: 0.1 ether}(strike1, 0);
-            uint32 stakeId = router.vault().hodlStake(strike1, amountHodl, alice);
+            (uint256 amountHodl, uint32 stakeId) = router.hodlBuy{value: 0.1 ether}(strike1, 0, true);
+            // uint32 stakeId = router.vault().hodlStake(strike1, amountHodl, alice);
             router.vault().hodlUnstake(stakeId, amountHodl, alice);
             IERC20 token = vault.deployments(strike1);
             token.approve(address(router), amountHodl);
@@ -164,8 +164,7 @@ contract RouterTest is BaseTest {
 
         vm.deal(alice, 1 ether);
         vm.startPrank(alice);
-        uint256 out = router.hodlBuy{value: 0.2 ether}(strike1, 0);
-        uint32 stakeId = router.vault().hodlStake(strike1, out, alice);
+        (uint256 out, uint32 stakeId) = router.hodlBuy{value: 0.2 ether}(strike1, 0, true);
         vm.stopPrank();
 
         assertEq(out, 233732374240915488);
@@ -211,7 +210,7 @@ contract RouterTest is BaseTest {
         {
             vm.deal(alice, 1 ether);
             vm.startPrank(alice);
-            uint256 outHodl = router.hodlBuy{value: 0.3 ether}(strike1, 0);
+            (uint256 outHodl, ) = router.hodlBuy{value: 0.3 ether}(strike1, 0, false);
             router.vault().hodlStake(strike1, outHodl, alice);
             vm.stopPrank();
 
@@ -260,5 +259,38 @@ contract RouterTest is BaseTest {
             assertClose(out, 29751294189320052, 1);
             assertClose(delta, 29751294189320052, 1);
         }
+    }
+
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/30
+    function testYBuysSellsDos() public {
+        initRouter();
+
+        oracle.setPrice(strike1 - 1);
+
+        vm.deal(alice, 1 ether);
+        vm.startPrank(alice);
+
+        // Works before 1 wei transfer
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 amount = 0.01 ether;
+            (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
+            router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
+            uint32 stakeId = router.vault().yStake(strike1, amountY, alice);
+            router.vault().yUnstake(stakeId, alice);
+            vault.yMulti().setApprovalForAll(address(router), true);
+            (uint256 loanSell, ) = router.previewYSell(strike1, amountY);
+            router.ySell(strike1, loanSell, amountY, 0);
+        }
+
+        uint256 amount = 0.01 ether;
+        (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
+
+        // Works after 1 wei transfer
+        vm.deal(address(this), 1 wei);
+        payable(address(router)).transfer(1 wei);
+
+        router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
+
+        vm.stopPrank();
     }
 }

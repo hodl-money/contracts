@@ -285,7 +285,7 @@ contract Vault is ReentrancyGuard, Ownable {
             value -= feeValue;
         }
 
-        // Account for off-by-one deposit in stETH
+        // Account get the actual amount after deposit into underlying
         uint256 amount = source.deposit{value: value}();
         deposits += amount;
 
