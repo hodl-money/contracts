@@ -1020,6 +1020,37 @@ contract VaultTest is BaseTest {
         assertEq(treasury.balance, 15 ether);
     }
 
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/39
+    function testYStakePrecision() public {
+        initVault();
+
+        // Mint hodl tokens
+        vm.startPrank(alice);
+        vault.mint{value: 4 ether}(strike1);
+        vm.stopPrank();
+
+        // Stake first batch of y tokens
+        vm.startPrank(alice);
+        uint32 stake1 = vault.yStake(strike1, 1 ether, alice);
+        vm.stopPrank();
+
+        simulateYield(1 ether);
+
+        ( , , , , uint256 claimed1, ) = vault.yStakes(stake1);
+        assertEq(claimed1, 1);
+
+        // Stake more y tokens
+        vm.startPrank(alice);
+        uint32 stake2 = vault.yStake(strike1, 1 ether, alice);
+        vm.stopPrank();
+
+        ( , , , , uint256 claimed2, ) = vault.yStakes(stake2);
+        assertEq(claimed2, 1 ether);
+
+        assertEq(vault.claimable(stake1), 1 ether - 2);
+        assertEq(vault.claimable(stake2), 0);
+    }
+
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
         IERC20(steth).transfer(address(vault.source()), amount);

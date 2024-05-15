@@ -436,7 +436,8 @@ contract Vault is ReentrancyGuard, Ownable {
             strike: strike,
             epochId: epochId,
             amount: amount,
-            claimed: ypt * amount / PRECISION_FACTOR,
+            // + 1 to tip rounding error in protocol favor
+            claimed: (ypt * amount / PRECISION_FACTOR) + 1,
             acc: 0 });
 
         yStaked[epochId] += amount;
@@ -498,7 +499,7 @@ contract Vault is ReentrancyGuard, Ownable {
             c = ypt * stk.amount / PRECISION_FACTOR;
         }
 
-        return c - stk.claimed;
+        return stk.claimed > c ? 0 : c - stk.claimed;
     }
 
     // claim transfers to the user his claimable yield.
