@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import { IStEth } from "../src/interfaces/IStEth.sol";
 
@@ -23,7 +24,7 @@ import { IPool } from "../src/interfaces/aave/IPool.sol";
 import { BaseTest } from  "./BaseTest.sol";
 import { FakeOracle } from  "./helpers/FakeOracle.sol";
 
-contract RouterTest is BaseTest {
+contract RouterTest is BaseTest, ERC1155Holder {
     Vault public vault;
     Router public router;
     FakeOracle public oracle;
@@ -148,7 +149,10 @@ contract RouterTest is BaseTest {
 
         vm.startPrank(alice);
         assertEq(pool.liquidity(), 0);
+        uint256 before = vault.yMulti().balanceOf(alice, strike);
         router.addLiquidity{value: 1 ether}(strike, 0.5 ether, 1800);
+        uint256 delta = vault.yMulti().balanceOf(alice, strike) - before;
+        assertEq(delta, 0.5 ether);
         assertClose(pool.liquidity(),
                     5906514819097630812,
                     1e6);

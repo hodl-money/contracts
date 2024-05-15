@@ -146,6 +146,9 @@ contract Router is ReentrancyGuard, Ownable {
         vault.mint{value: mintAmount}(strike);
         uint256 delta = hodlToken.balanceOf(address(this)) - before;
 
+        // y isn't used for liquidity, give it to the user
+        vault.yMulti().safeTransferFrom(address(this), msg.sender, strike, delta, "");
+
         uint256 wethAmount = msg.value - mintAmount;
         weth.deposit{value: wethAmount}();
 
