@@ -294,4 +294,57 @@ contract RouterTest is BaseTest {
 
         vm.stopPrank();
     }
+
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/29
+    function testDupStealingApproval() public {
+        initRouter();
+        oracle.setPrice(strike1 - 1);
+
+        Drainer drainer = new Drainer(aavePool, weth);
+        uint amount = 1 ether;
+
+        vm.startPrank(alice);
+        vm.deal(alice, amount);
+        vault.mint{value: amount}(strike1);
+        uint aliceBalanceBefore = vault.yMulti().balanceOf(alice, strike1);
+        // Alice approves yMulti to router, because she wants to perform ySell
+        vault.yMulti().setApprovalForAll(address(router), true);
+        vm.stopPrank();
+
+        (uint256 amountY, ) = router.previewYBuy(strike1, amount);
+        (uint256 loanSell, ) = router.previewYSell(strike1, amountY);
+        vm.expectRevert("only from router");
+        drainer.attack(
+            address(router),
+            alice,
+            strike1,
+            amountY,
+            loanSell
+        );
+
+        uint256 aliceBalanceAfter = vault.yMulti().balanceOf(alice, strike1);
+        assertEq(aliceBalanceBefore, aliceBalanceAfter);
+    }
+}
+
+contract Drainer {
+    IPool public immutable aavePool;
+    uint8 public constant LOAN_Y_SELL = 2;
+    address public weth;
+
+    constructor (address aave, address _weth) {
+        aavePool = IPool(aave);
+        weth = _weth;
+    }
+
+    function attack(
+        address flashloanRecipient,
+        address victim,
+        uint64 strike,
+        uint amount,
+        uint loan
+    ) external {
+        bytes memory data = abi.encode(LOAN_Y_SELL, victim, strike, amount);
+        aavePool.flashLoanSimple(flashloanRecipient, address(weth), loan, data, 0);
+    }
 }

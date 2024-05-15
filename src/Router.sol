@@ -531,10 +531,11 @@ contract Router is ReentrancyGuard {
     function executeOperation(address,
                               uint256 loan,
                               uint256 fee,
-                              address,
+                              address initiator,
                               bytes calldata params) external payable returns (bool) {
 
         require(msg.sender == address(aavePool), "only aave");
+        require(initiator == address(this), "only from router");
 
         (uint8 op,
          address user,
