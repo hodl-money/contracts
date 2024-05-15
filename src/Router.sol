@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from  "@openzeppelin/contracts/access/Ownable.sol";
 
 import { Vault } from  "./Vault.sol";
 
@@ -25,13 +26,15 @@ import { IPool } from "../src/interfaces/aave/IPool.sol";
 //  - Buying/selling hodl tokens
 //  - Buying/selling y tokens
 //
-contract Router is ReentrancyGuard {
+contract Router is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     uint8 public constant LOAN_Y_BUY = 1;
     uint8 public constant LOAN_Y_SELL = 2;
     uint24 public constant FEE = 3000;
     uint256 public constant SEARCH_TOLERANCE = 1e9;
+
+    uint24 public wstethWethPoolFee = 100;
 
     Vault public immutable vault;
     IWrappedETH public immutable weth;
@@ -76,6 +79,8 @@ contract Router is ReentrancyGuard {
                 uint256 amountOut,
                 uint256 loan);
 
+    event SetWstethWethPoolFee(uint24 fee);
+
     constructor(address vault_,
                 address weth_,
                 address steth_,
@@ -84,7 +89,9 @@ contract Router is ReentrancyGuard {
                 address swapRouter_,
                 address manager_,
                 address quoterV2_,
-                address aavePool_) ReentrancyGuard() {
+                address aavePool_)
+        ReentrancyGuard()
+        Ownable(msg.sender) {
 
         require(vault_ != address(0));
         require(weth_ != address(0));
@@ -114,6 +121,12 @@ contract Router is ReentrancyGuard {
             : (address(weth), address(hodlToken));
 
         return uniswapV3Factory.getPool(token0, token1, FEE);
+    }
+
+    function setWstethWethPoolFee(uint24 wstethWethPoolFee_) external onlyOwner {
+        wstethWethPoolFee = wstethWethPoolFee_;
+
+        emit SetWstethWethPoolFee(wstethWethPoolFee);
     }
 
     // Add liquidity respecting the fact that 1 hodl token should never trade
@@ -422,7 +435,7 @@ contract Router is ReentrancyGuard {
             tokenIn: address(wsteth),
             tokenOut: address(weth),
             amountIn: amountWsteth,
-            fee: 500,
+            fee: wstethWethPoolFee,
             sqrtPriceLimitX96: 0 });
         (uint256 amountOutWeth, , , ) = quoterV2.quoteExactInputSingle(paramsWeth);
 
@@ -504,7 +517,7 @@ contract Router is ReentrancyGuard {
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(wsteth),
                 tokenOut: address(weth),
-                fee: 500,
+                fee: wstethWethPoolFee,
                 recipient: address(this),
                 deadline: block.timestamp + 1,
                 amountIn: bal,

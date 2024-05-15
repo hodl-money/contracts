@@ -88,7 +88,6 @@ contract RouterTest is BaseTest {
 
         for (uint256 i = 0; i < 5; i++) {
             (uint256 amountHodl, uint32 stakeId) = router.hodlBuy{value: 0.1 ether}(strike1, 0, true);
-            // uint32 stakeId = router.vault().hodlStake(strike1, amountHodl, alice);
             router.vault().hodlUnstake(stakeId, amountHodl, alice);
             IERC20 token = vault.deployments(strike1);
             token.approve(address(router), amountHodl);
@@ -255,9 +254,9 @@ contract RouterTest is BaseTest {
 
             uint256 delta = IERC20(address(weth)).balanceOf(alice) - before;
 
-            assertEq(previewProfit, 29751294189320052);
-            assertClose(out, 29751294189320052, 1);
-            assertClose(delta, 29751294189320052, 1);
+            assertEq(previewProfit, 29901470756332774);
+            assertClose(out, 29901470756332774, 1);
+            assertClose(delta, 29901470756332774, 1);
         }
     }
 
