@@ -1057,7 +1057,6 @@ contract VaultTest is BaseTest {
 
         // Alice mints hodl
         vm.startPrank(alice);
-        uint32 epoch1 = vault.nextId();
         vault.mint{value: 1 ether}(strike1);
         vm.stopPrank();
 

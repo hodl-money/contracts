@@ -270,9 +270,10 @@ contract RouterTest is BaseTest {
         vm.deal(alice, 1 ether);
         vm.startPrank(alice);
 
+        uint256 amount = 0.01 ether;
+
         // Works before 1 wei transfer
         for (uint256 i = 0; i < 5; i++) {
-            uint256 amount = 0.01 ether;
             (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
             router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
             uint32 stakeId = router.vault().yStake(strike1, amountY, alice);
@@ -282,14 +283,14 @@ contract RouterTest is BaseTest {
             router.ySell(strike1, loanSell, amountY, 0);
         }
 
-        uint256 amount = 0.01 ether;
-        (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
+        {
+            (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
+            // Works after 1 wei transfer
+            vm.deal(address(this), 1 wei);
+            payable(address(router)).transfer(1 wei);
 
-        // Works after 1 wei transfer
-        vm.deal(address(this), 1 wei);
-        payable(address(router)).transfer(1 wei);
-
-        router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
+            router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
+        }
 
         vm.stopPrank();
     }
