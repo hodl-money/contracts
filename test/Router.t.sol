@@ -352,6 +352,35 @@ contract RouterTest is BaseTest, ERC1155Holder {
         assertEq(wethBefore, wethAfter);
         assertEq(hodlBefore, hodlAfter);
     }
+
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/36
+    function testYBuysSellsLeftover() public {
+        initRouter();
+
+        oracle.setPrice(strike1 - 1, 0);
+
+        vm.deal(alice, 1 ether);
+        vm.startPrank(alice);
+
+        uint256 routerBalanceBefore = IERC20(weth).balanceOf(address(router));
+
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 amount = 0.01 ether;
+            (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
+            router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
+            uint32 stakeId = router.vault().yStake(strike1, amountY, alice);
+            router.vault().yUnstake(stakeId, alice);
+            vault.yMulti().setApprovalForAll(address(router), true);
+            (uint256 loanSell, ) = router.previewYSell(strike1, amountY);
+            router.ySell(strike1, loanSell, amountY, 0);
+        }
+
+        vm.stopPrank();
+
+        uint256 routerBalanceAfter = IERC20(weth).balanceOf(address(router));
+
+        assertEq(routerBalanceAfter, routerBalanceBefore);
+    }
 }
 
 contract Drainer {

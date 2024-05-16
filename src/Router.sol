@@ -186,11 +186,7 @@ contract Router is ReentrancyGuard, Ownable {
 
         manager.mint(params);
 
-        // Refund leftover WETH
-        uint256 leftover = IERC20(address(weth)).balanceOf(address(this));
-        if (leftover > 0) {
-            IERC20(address(weth)).transfer(msg.sender, leftover);
-        }
+        _refundLeftoverWeth();
 
         emit AddLiquidity(msg.sender, strike, delta, wethAmount);
     }
@@ -242,6 +238,8 @@ contract Router is ReentrancyGuard, Ownable {
         if (shouldStake) {
             stakeId = vault.hodlStake(strike, out, msg.sender);
         }
+
+        _refundLeftoverWeth();
 
         emit HodlBuy(msg.sender, strike, msg.value, out, stakeId);
 
@@ -363,6 +361,8 @@ contract Router is ReentrancyGuard, Ownable {
         require(delta >= minOut, "y min out");
 
         vault.yMulti().safeTransferFrom(address(this), msg.sender, strike, delta, "");
+
+        _refundLeftoverWeth();
 
         emit YBuy(msg.sender, strike, msg.value, delta, loan);
 
@@ -570,6 +570,13 @@ contract Router is ReentrancyGuard, Ownable {
             return _ySellViaLoan(loan, fee, user, strike, amount);
         } else {
             return false;
+        }
+    }
+
+    function _refundLeftoverWeth() internal {
+        uint256 leftover = IERC20(address(weth)).balanceOf(address(this));
+        if (leftover > 0) {
+            IERC20(address(weth)).transfer(msg.sender, leftover);
         }
     }
 
