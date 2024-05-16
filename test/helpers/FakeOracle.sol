@@ -4,21 +4,52 @@ pragma solidity ^0.8.13;
 import { IOracle } from  "../../src/interfaces/IOracle.sol";
 
 contract FakeOracle is IOracle {
-    uint256 _price = 0;
+    uint80 public roundId = 1;
 
-    function price(uint80) external view returns (uint256) {
-        return _price;
+    uint256 _price;
+    uint256 _timestamp;
+
+    mapping(uint80 => uint256) roundToPrice;
+    mapping(uint80 => uint256) roundToTimestamp;
+
+    constructor() {
+        setPrice(1, 0);
+        setTimestamp(block.timestamp, 0);
     }
 
-    function setPrice(uint256 price_) external {
-        _price = price_;
+    function price(uint80 id) external view returns (uint256) {
+        if (id == 0) {
+            id = roundId;
+        }
+
+        return roundToPrice[id];
     }
 
-    function timestamp(uint80) external view returns (uint256) {
-        return block.timestamp;
+    function timestamp(uint80 id) external view returns (uint256) {
+        if (id == 0) {
+            id = roundId;
+        }
+
+        return roundToTimestamp[id];
     }
 
-    function roundId() external pure returns (uint80) {
-        return 1;
+    function setPrice(uint256 price_, uint80 id) public {
+        if (id == 0) {
+            id = roundId;
+        }
+
+        roundToPrice[id] = price_;
+    }
+
+    function setTimestamp(uint256 timestamp_, uint80 id) public {
+        if (id == 0) {
+            id = roundId;
+        }
+
+        roundToTimestamp[id] = timestamp_;
+    }
+
+    function setRound(uint80 roundId_) public {
+        roundId = roundId_;
     }
 }

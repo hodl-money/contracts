@@ -149,6 +149,7 @@ contract Vault is ReentrancyGuard, Ownable {
     struct EpochInfo {
         uint64 strike;
         bool closed;
+        uint256 timestamp;
         uint256 yieldPerTokenAcc;
         uint256 cumulativeYieldAcc;
     }
@@ -277,6 +278,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
     function _createEpoch(uint64 strike) internal {
         infos[nextId].strike = strike;
+        infos[nextId].timestamp = block.timestamp;
         epochs[strike] = nextId++;
     }
 
@@ -306,7 +308,7 @@ contract Vault is ReentrancyGuard, Ownable {
         emit Mint(msg.sender, strike, amount);
     }
 
-    function canRedeem(uint32 stakeId) public view returns (bool) {
+    function canRedeem(uint32 stakeId, uint80 roundId) public view returns (bool) {
         HodlStake storage stk = hodlStakes[stakeId];
 
         // Check if there is anything to redeem
@@ -317,7 +319,9 @@ contract Vault is ReentrancyGuard, Ownable {
         // Check the two conditions that enable redemption:
 
         // (1) If price is currently above strike
-        if (oracle.price(0) >= stk.strike) {
+        if (oracle.price(roundId) >= stk.strike &&
+            oracle.timestamp(roundId) >= infos[stk.epochId].timestamp) {
+
             return true;
         }
 
@@ -354,12 +358,12 @@ contract Vault is ReentrancyGuard, Ownable {
     // redeem converts a stake into the underlying tokens if the price has
     // touched the strike. The redemption can happen even if the price later
     // dips below.
-    function redeem(uint32 stakeId, uint256 amount) external nonReentrant {
+    function redeem(uint32 stakeId, uint80 roundId, uint256 amount) external nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
 
         require(stk.user == msg.sender, "redeem user");
         require(stk.amount >= amount, "redeem amount");
-        require(canRedeem(stakeId), "cannot redeem");
+        require(canRedeem(stakeId, roundId), "cannot redeem");
 
         // Burn the specified hodl stake
         stk.amount -= amount;

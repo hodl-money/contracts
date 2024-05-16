@@ -46,12 +46,12 @@ contract RouterTest is BaseTest, ERC1155Holder {
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(source), address(oracle), address(this));
         source.transferOwnership(address(vault));
-        oracle.setPrice(strike1 - 1);
+        oracle.setPrice(strike1 - 1, 0);
         address hodl1 = vault.deployERC20(strike1);
         vm.startPrank(alice);
         vault.mint{value: 10 ether}(strike1);
         vm.stopPrank();
-        oracle.setPrice(strike1 + 1);
+        oracle.setPrice(strike1 + 1, 0);
 
         // Set up the pool
         (address token0, address token1) = hodl1 < weth
@@ -76,9 +76,9 @@ contract RouterTest is BaseTest, ERC1155Holder {
                             quoterV2,
                             aavePool);
 
-        oracle.setPrice(strike1 - 1);
+        oracle.setPrice(strike1 - 1, 0);
         router.addLiquidity{value: 10 ether}(strike1, 5 ether, 1800);
-        oracle.setPrice(strike1 + 1);
+        oracle.setPrice(strike1 + 1, 0);
     }
 
     function testGas_HodlBuysSells() public {
@@ -101,7 +101,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
     function testGas_YBuysSells() public {
         initRouter();
 
-        oracle.setPrice(strike1 - 1);
+        oracle.setPrice(strike1 - 1, 0);
 
         vm.deal(alice, 1 ether);
         vm.startPrank(alice);
@@ -130,7 +130,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
     }
 
     function _testAddLiquidityForStrike(uint64 strike) private {
-        oracle.setPrice(strike - 1);
+        oracle.setPrice(strike - 1, 0);
 
         vm.deal(alice, 1 ether);
 
@@ -174,12 +174,12 @@ contract RouterTest is BaseTest, ERC1155Holder {
         assertEq(previewOut, 233732374240915488);
 
         vm.expectRevert("redeem user");
-        vault.redeem(stakeId, out);
+        vault.redeem(stakeId, 0, out);
 
         uint256 before = IERC20(steth).balanceOf(alice);
 
         vm.startPrank(alice);
-        vault.redeem(stakeId, out);
+        vault.redeem(stakeId, 0, out);
         vm.stopPrank();
 
         uint256 delta = IERC20(steth).balanceOf(alice) - before;
@@ -190,7 +190,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
         assertEq(amountY, 872715808468637986);
         assertEq(loan, 672715808468637986);
 
-        oracle.setPrice(strike1 - 1);
+        oracle.setPrice(strike1 - 1, 0);
 
         assertEq(vault.yMulti().balanceOf(alice, strike1), 0);
 
@@ -268,7 +268,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
     function testYBuysSellsDos() public {
         initRouter();
 
-        oracle.setPrice(strike1 - 1);
+        oracle.setPrice(strike1 - 1, 0);
 
         vm.deal(alice, 1 ether);
         vm.startPrank(alice);
@@ -301,7 +301,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
     // https://github.com/code-423n4/2024-05-hodl-findings/issues/29
     function testDupStealingApproval() public {
         initRouter();
-        oracle.setPrice(strike1 - 1);
+        oracle.setPrice(strike1 - 1, 0);
 
         Drainer drainer = new Drainer(aavePool, weth);
         uint amount = 1 ether;

@@ -59,9 +59,14 @@ contract BaseTest is Test {
 
     function init(uint256 fork) public {
         if (fork == 0xdeadbeef) {
-            fork = vm.createFork(vm.envString("MAINNET_RPC_URL"), 18260000);
+            forkToBlock(18260000);
+        } else {
+            vm.selectFork(fork);
         }
+    }
 
+    function forkToBlock(uint256 number) public {
+        uint256 fork = vm.createFork(vm.envString("MAINNET_RPC_URL"), number);
         vm.selectFork(fork);
     }
 

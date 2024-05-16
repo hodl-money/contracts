@@ -47,7 +47,7 @@ contract DeployScript is BaseScript {
         vm.startBroadcast(pk);
 
         FakeOracle oracle = new FakeOracle();
-        oracle.setPrice(1999_00000000);
+        oracle.setPrice(1999_00000000, 0);
 
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(source),
