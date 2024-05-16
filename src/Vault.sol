@@ -89,7 +89,7 @@ contract Vault is ReentrancyGuard, Ownable {
     uint256 public constant PRECISION_FACTOR = 1 ether;
 
     uint256 public constant FEE_BASIS = 100_00;
-    uint256 public constant MAX_FEE = 15_00;  // 15%
+    uint256 public constant MAX_FEE = 10_00;  // 10%
 
     uint32 public nextId = 1;
     uint256 public fee = 0;
