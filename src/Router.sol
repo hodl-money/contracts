@@ -186,6 +186,12 @@ contract Router is ReentrancyGuard, Ownable {
 
         manager.mint(params);
 
+        // Refund leftover WETH
+        uint256 leftover = IERC20(address(weth)).balanceOf(address(this));
+        if (leftover > 0) {
+            IERC20(address(weth)).transfer(msg.sender, leftover);
+        }
+
         emit AddLiquidity(msg.sender, strike, delta, wethAmount);
     }
 

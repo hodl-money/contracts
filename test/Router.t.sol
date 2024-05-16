@@ -150,7 +150,9 @@ contract RouterTest is BaseTest, ERC1155Holder {
         vm.startPrank(alice);
         assertEq(pool.liquidity(), 0);
         uint256 before = vault.yMulti().balanceOf(alice, strike);
+
         router.addLiquidity{value: 1 ether}(strike, 0.5 ether, 1800);
+
         uint256 delta = vault.yMulti().balanceOf(alice, strike) - before;
         assertEq(delta, 0.5 ether);
         assertClose(pool.liquidity(),
@@ -299,7 +301,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
     }
 
     // https://github.com/code-423n4/2024-05-hodl-findings/issues/29
-    function testDupStealingApproval() public {
+    function testStealingApproval() public {
         initRouter();
         oracle.setPrice(strike1 - 1, 0);
 
@@ -310,6 +312,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
         vm.deal(alice, amount);
         vault.mint{value: amount}(strike1);
         uint aliceBalanceBefore = vault.yMulti().balanceOf(alice, strike1);
+
         // Alice approves yMulti to router, because she wants to perform ySell
         vault.yMulti().setApprovalForAll(address(router), true);
         vm.stopPrank();
@@ -327,6 +330,27 @@ contract RouterTest is BaseTest, ERC1155Holder {
 
         uint256 aliceBalanceAfter = vault.yMulti().balanceOf(alice, strike1);
         assertEq(aliceBalanceBefore, aliceBalanceAfter);
+    }
+
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/38
+    function testAddLiquidityRefund() public {
+        initRouter();
+
+        uint64 strike = 1000_00000001;
+
+        // IERC20 hodlToken = vault.deployments(strike);
+        IERC20 weth = IERC20(weth);
+
+        uint wethBefore = weth.balanceOf(address(router));
+        uint hodlBefore = vault.hodlMulti().balanceOf(address(router), strike);
+
+        _testAddLiquidityForStrike(strike);
+
+        uint wethAfter = weth.balanceOf(address(router));
+        uint hodlAfter = vault.hodlMulti().balanceOf(address(router), strike);
+
+        assertEq(wethBefore, wethAfter);
+        assertEq(hodlBefore, hodlAfter);
     }
 }
 
