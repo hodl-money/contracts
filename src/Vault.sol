@@ -275,6 +275,11 @@ contract Vault is ReentrancyGuard, Ownable {
         }
     }
 
+    function _createEpoch(uint64 strike) internal {
+        infos[nextId].strike = strike;
+        epochs[strike] = nextId++;
+    }
+
     function mint(uint64 strike) external nonReentrant payable {
         require(oracle.price(0) < strike, "strike too low");
 
@@ -291,8 +296,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
         // Create the epoch if needed
         if (epochs[strike] == 0) {
-            infos[nextId].strike = strike;
-            epochs[strike] = nextId++;
+            _createEpoch(strike);
         }
 
         // Mint hodl + y
@@ -388,15 +392,12 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     function _closeOutEpoch(uint32 epochId) private {
-        if (epochId == 0) {
-            return;
-        }
-
         if (infos[epochId].closed) {
             return;
         }
 
         EpochInfo storage info = infos[epochId];
+        require(info.strike != 0, "cannot close epoch 0");
 
         // Checkpoint this strike, to prevent yield accumulation
         _checkpoint(epochId);
@@ -412,7 +413,7 @@ contract Vault is ReentrancyGuard, Ownable {
         yMulti.burnStrike(info.strike);
 
         // Don't checkpoint again, trigger new epoch
-        epochs[info.strike] = 0;
+        _createEpoch(info.strike);
 
         // Remember that we closed this epoch
         info.closed = true;

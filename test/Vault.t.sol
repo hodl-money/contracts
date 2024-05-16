@@ -44,18 +44,18 @@ contract VaultTest is BaseTest {
 
         // Mint hodl tokens
         vm.startPrank(alice);
-        uint32 epoch1 = vault.nextId();
         vault.mint{value: 3 ether}(strike1);
+        uint32 epoch1 = vault.epochs(strike1);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        uint32 epoch2 = vault.nextId();
         vault.mint{value: 4 ether}(strike2);
+        uint32 epoch2 = vault.epochs(strike2);
         vm.stopPrank();
 
         vm.startPrank(chad);
-        uint32 epoch3 = vault.nextId();
         vault.mint{value: 8 ether}(strike3);
+        uint32 epoch3 = vault.epochs(strike3);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 3 ether, 10);
@@ -224,8 +224,8 @@ contract VaultTest is BaseTest {
         oracle.setPrice(strike3 - 1);
 
         vm.startPrank(chad);
-        uint32 epoch4 = vault.nextId();
         vault.mint{value: 8 ether}(strike3);
+        uint32 epoch4 = vault.epochs(strike3);
         assertClose(vault.hodlMulti().balanceOf(chad, strike3), 8 ether, 10);
         vm.stopPrank();
 
@@ -606,8 +606,8 @@ contract VaultTest is BaseTest {
 
         // Alice mints hodl
         vm.startPrank(alice);
-        uint32 epoch1 = vault.nextId();
         vault.mint{value: 1 ether}(strike1);
+        uint32 epoch1 = vault.epochs(strike1);
         vm.stopPrank();
 
         // Bob mints hodl
@@ -703,8 +703,8 @@ contract VaultTest is BaseTest {
 
         // Alice mints + stakes hodl
         vm.startPrank(alice);
-        uint32 epoch1 = vault.nextId();
         vault.mint{value: 4 ether}(strike1);
+        uint32 epoch1 = vault.epochs(strike1);
         uint32 stake1 = vault.hodlStake(strike1, 3 ether, alice);
         vm.stopPrank();
 
@@ -774,7 +774,7 @@ contract VaultTest is BaseTest {
 
         // Simulate yield, it should be on a new epoch
         vm.startPrank(alice);
-        uint32 epoch2 = vault.nextId();
+        uint32 epoch2 = vault.epochs(strike1);
         vault.mint{value: 4 ether}(strike1);
         uint32 stake3 = vault.yStake(strike1, 1 ether, degen);
         vm.stopPrank();
