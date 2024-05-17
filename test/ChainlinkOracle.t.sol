@@ -20,8 +20,7 @@ contract ChainlinkOracleTest is BaseTest {
         ChainlinkOracle oracle = new ChainlinkOracle(ethPriceFeed);
 
         assertEq(oracle.price(0), 172509460550);
-        assertEq(oracle.timestamp(0), 1696215371);
-        assertEq(oracle.timestamp(0), block.timestamp);
+        assertEq(oracle.timestamp(0), 1696211723);
 
         uint80 roundId = 110680464442257315708;
         assertEq(oracle.price(roundId), 168606000000);

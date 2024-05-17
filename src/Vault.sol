@@ -33,8 +33,8 @@ import { HodlToken } from  "./single/HodlToken.sol";
 // * Minting
 // The plETH and ybETH tokens are minted by the Vault. The user transfers some
 // amount of ETH into the contract, and he mints the same amount of plETH and
-// ybETH as he transferred. For example, a deposit of 1 ETH gives the user
-// 1 plETH and 1 ybETH at the strike he chose.
+// ybETH as he transferred, less fees. For example, a deposit of 1 ETH gives
+// the user 1 plETH and 1 ybETH at the strike he chose.
 //
 // * Staking plETH
 // Users may stake plETH in anticipation of the strike price hitting. If the
@@ -276,7 +276,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
     function _createEpoch(uint64 strike) internal {
         infos[nextId].strike = strike;
-        infos[nextId].timestamp = block.timestamp;
+        infos[nextId].timestamp = oracle.timestamp(0);
         epochs[strike] = nextId++;
     }
 
