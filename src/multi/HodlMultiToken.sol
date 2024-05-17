@@ -48,6 +48,13 @@ contract HodlMultiToken is ERC1155, Ownable {
                               uint256 strike,
                               uint256 amount,
                               bytes memory) public override {
+        if (to == address(0)) {
+            revert ERC1155InvalidReceiver(address(0));
+        }
+        if (from == address(0)) {
+            revert ERC1155InvalidSender(address(0));
+        }
+
         if (from != msg.sender &&
             !isApprovedForAll(from, msg.sender) &&
             !authorized[msg.sender]) {

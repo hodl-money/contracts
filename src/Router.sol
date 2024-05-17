@@ -140,17 +140,12 @@ contract Router is ReentrancyGuard, Ownable {
     // above a price of 1 ETH.
     function addLiquidity(uint64 strike,
                           uint256 mintAmount,
+                          uint256 amountHodlMin,
+                          uint256 amountWethMin,
                           uint24 tick) external nonReentrant payable {
 
         IERC20 hodlToken = vault.deployments(strike);
         require(address(hodlToken) != address(0), "no deployed ERC20");
-
-        address token0;
-        address token1;
-        int24 tickLower;
-        int24 tickUpper;
-        uint256 token0Amount;
-        uint256 token1Amount;
 
         uint256 delta = vault.mint{value: mintAmount}(strike);
 
@@ -160,37 +155,37 @@ contract Router is ReentrancyGuard, Ownable {
         uint256 wethAmount = msg.value - mintAmount;
         weth.deposit{value: wethAmount}();
 
+        INonfungiblePositionManager.MintParams memory params;
         if (address(hodlToken) < address(weth)) {
-            token0 = address(hodlToken);
-            token1 = address(weth);
-            tickLower = -int24(tick);
-            tickUpper = 0;
-            token0Amount = delta;
-            token1Amount = wethAmount;
+            params = INonfungiblePositionManager.MintParams({
+                token0: address(hodlToken),
+                token1: address(weth),
+                fee: hodlPoolFee,
+                tickLower: -int24(tick),
+                tickUpper: 0,
+                amount0Desired: delta,
+                amount1Desired: wethAmount,
+                amount0Min: amountHodlMin,
+                amount1Min: amountWethMin,
+                recipient: msg.sender,
+                deadline: block.timestamp + 1 });
         } else {
-            token0 = address(weth);
-            token1 = address(hodlToken);
-            tickLower = 0;
-            tickUpper = int24(tick);
-            token0Amount = wethAmount;
-            token1Amount = delta;
+            params = INonfungiblePositionManager.MintParams({
+                token0: address(weth),
+                token1: address(hodlToken),
+                fee: hodlPoolFee,
+                tickLower: 0,
+                tickUpper: int24(tick),
+                amount0Desired: wethAmount,
+                amount1Desired: delta,
+                amount0Min: amountWethMin,
+                amount1Min: amountHodlMin,
+                recipient: msg.sender,
+                deadline: block.timestamp + 1 });
         }
 
-        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
-            token0: token0,
-            token1: token1,
-            fee: hodlPoolFee,
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            amount0Desired: token0Amount,
-            amount1Desired: token1Amount,
-            amount0Min: 0,
-            amount1Min: 0,
-            recipient: msg.sender,
-            deadline: block.timestamp + 1 });
-
-        IERC20(params.token0).forceApprove(address(manager), token0Amount);
-        IERC20(params.token1).forceApprove(address(manager), token1Amount);
+        IERC20(params.token0).forceApprove(address(manager), params.amount0Desired);
+        IERC20(params.token1).forceApprove(address(manager), params.amount1Desired);
 
         manager.mint(params);
 

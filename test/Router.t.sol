@@ -77,7 +77,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
                             aavePool);
 
         oracle.setPrice(strike1 - 1, 0);
-        router.addLiquidity{value: 10 ether}(strike1, 5 ether, 1800);
+        router.addLiquidity{value: 10 ether}(strike1, 5 ether, 0, 0, 1800);
         oracle.setPrice(strike1 + 1, 0);
     }
 
@@ -151,7 +151,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
         assertEq(pool.liquidity(), 0);
         uint256 before = vault.yMulti().balanceOf(alice, strike);
 
-        router.addLiquidity{value: 1 ether}(strike, 0.5 ether, 1800);
+        router.addLiquidity{value: 1 ether}(strike, 0.5 ether, 0, 0, 1800);
 
         uint256 delta = vault.yMulti().balanceOf(alice, strike) - before;
         assertEq(delta, 0.5 ether);
