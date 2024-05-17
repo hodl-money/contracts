@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { BaseTest } from  "./BaseTest.sol";
 import { FakeOracle } from  "./helpers/FakeOracle.sol";
+import { SlashableYieldSource } from  "./helpers/SlashableYieldSource.sol";
 
 import { IStEth } from "../src/interfaces/IStEth.sol";
 import { ILiquidityPool } from "../src/interfaces/ILiquidityPool.sol";
@@ -19,6 +20,7 @@ contract VaultTest is BaseTest {
     Vault vault;
 
     FakeOracle oracle;
+    StETHYieldSource source;
 
     uint64 strike1 = 2000_00000000;
     uint64 strike2 = 3000_00000000;
@@ -34,7 +36,7 @@ contract VaultTest is BaseTest {
         treasury = createUser(1000);
         oracle = new FakeOracle();
         oracle.setPrice(1999_00000000, 0);
-        StETHYieldSource source = new StETHYieldSource(steth);
+        source = new StETHYieldSource(steth);
         vault = new Vault(address(source), address(oracle), treasury);
         source.transferOwnership(address(vault));
     }
@@ -281,7 +283,7 @@ contract VaultTest is BaseTest {
 
     function testWithChainlinkOracle() public {
         ChainlinkOracle chainlink = new ChainlinkOracle(ethPriceFeed);
-        StETHYieldSource source = new StETHYieldSource(steth);
+        source = new StETHYieldSource(steth);
         vault = new Vault(address(source), address(chainlink), address(this));
         source.transferOwnership(address(vault));
 
@@ -1161,9 +1163,92 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
     }
 
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/35
+    function testMergeNegativeYield() public {
+        initVault();
+
+        // Alice mints tokens: 1ETH @ strike1
+        vm.startPrank(alice);
+        vm.deal(alice, 15 ether);
+        vault.mint{value: 15 ether}(strike1);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vm.deal(bob, 10 ether);
+        vault.mint{value: 10 ether}(strike1);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 15 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 15 ether, 10);
+
+        // negative rebase happened, e.g. massive slashing of Lido nodes
+        simulateNegativeYield(3 ether);
+
+        // Bob merges strike 1 tokens
+        vm.startPrank(bob);
+        vault.merge(strike1, 10 ether - 1);
+        vm.stopPrank();
+
+        // Alice merges strike 1 tokens
+        vm.startPrank(alice);
+        vault.merge(strike1, 15 ether - 2);
+        vm.stopPrank();
+
+        // Verify proportional accounting for negative yield
+        assertEq(vault.hodlMulti().balanceOf(alice, strike1), 0);
+        assertEq(vault.yMulti().balanceOf(alice, strike1), 0);
+        assertEq(IERC20(steth).balanceOf(bob), 10 ether * 22 / 25 - 3);
+        assertEq(IERC20(steth).balanceOf(alice), 15 ether * 22 / 25 - 1);
+    }
+
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/26
+    function testAccountingNegativeYield() public {
+        initVault();
+
+        // Alice mints tokens: 1ETH @ strike1
+        vm.startPrank(alice);
+        vm.deal(alice, 15 ether);
+        vault.mint{value: 15 ether}(strike1);
+        vault.yStake(strike1, 5 ether, alice);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vm.deal(bob, 10 ether);
+        vault.mint{value: 10 ether}(strike1);
+        vault.yStake(strike1, 5 ether, bob);
+        vm.stopPrank();
+
+        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 15 ether, 10);
+        assertClose(vault.yMulti().balanceOf(alice, strike1), 10 ether, 10);
+
+        simulateYield(1 ether);
+
+        assertEq(vault.totalCumulativeYield(), 1 ether);
+        assertEq(vault.yieldPerToken(), 0.1 ether);
+
+        // Trigger checkpoint to save `cumulativeYieldAcc`
+        vm.startPrank(bob);
+        vault.yStake(strike1, 1 wei, bob);
+        vm.stopPrank();
+
+        // Negative rebase happened, e.g. massive slashing of Lido nodes
+        simulateNegativeYield(3 ether);
+
+        assertEq(vault.totalCumulativeYield(), 0);
+        assertEq(vault.yieldPerToken(), 0);
+    }
+
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
         IERC20(steth).transfer(address(vault.source()), amount);
+    }
+
+    function simulateNegativeYield(uint256 amount) internal {
+        vm.startPrank(address(vault));
+        source.transferOwnership(address(this));
+        vm.stopPrank();
+        source.withdraw(amount, address(this));
+        source.transferOwnership(address(vault));
     }
 
     function claimAndVerify(uint32 stakeId, address user, uint256 amount, bool dumpCoins) internal {

@@ -350,11 +350,12 @@ contract Vault is ReentrancyGuard, Ownable {
         hodlMulti.burn(msg.sender, strike, amount);
         yMulti.burn(msg.sender, strike, amount);
 
-        amount = _withdraw(amount, msg.sender);
-
+        // Compute proportional share in case of negative rebase
+        uint256 share = amount * source.balance() / deposits;
+        share = _withdraw(share, msg.sender);
         deposits -= amount;
 
-        emit Merge(msg.sender, strike, amount);
+        emit Merge(msg.sender, strike, share);
     }
 
     // redeem converts a stake into the underlying tokens if the price has
@@ -557,7 +558,9 @@ contract Vault is ReentrancyGuard, Ownable {
     // yieldPerToken computes the global yield per token, meaning how much
     // yield every y token has accumulated thus far.
     function yieldPerToken() public view returns (uint256) {
-        uint256 deltaCumulative = totalCumulativeYield() - cumulativeYieldAcc;
+        uint256 total = totalCumulativeYield();
+        if (total < cumulativeYieldAcc) return 0;
+        uint256 deltaCumulative = total - cumulativeYieldAcc;
         
         if (yStakedTotal == 0) return yieldPerTokenAcc;
         uint256 incr = deltaCumulative * PRECISION_FACTOR / yStakedTotal;
