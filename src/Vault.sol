@@ -336,10 +336,19 @@ contract Vault is ReentrancyGuard, Ownable {
         return false;
     }
 
+    // _withdraw computes and executes a withdraw. It handles negative rebases,
+    // and returns the actual number of tokens sent to the user.
     function _withdraw(uint256 amount, address user) private returns (uint256) {
-        amount = _min(amount, source.balance());
-        source.withdraw(amount, user);
-        return amount;
+        uint256 share = amount;
+
+        // Compute proportional share in case of negative rebase
+        if (source.balance() < deposits) {
+            share = amount * source.balance() / deposits;
+        }
+
+        share = _min(share, source.balance());
+        source.withdraw(share, user);
+        return share;
     }
 
     // merge combines equal parts y + hodl tokens into the underlying asset.
@@ -350,9 +359,7 @@ contract Vault is ReentrancyGuard, Ownable {
         hodlMulti.burn(msg.sender, strike, amount);
         yMulti.burn(msg.sender, strike, amount);
 
-        // Compute proportional share in case of negative rebase
-        uint256 share = amount * source.balance() / deposits;
-        share = _withdraw(share, msg.sender);
+        uint256 share = _withdraw(amount, msg.sender);
         deposits -= amount;
 
         emit Merge(msg.sender, strike, share);
@@ -374,10 +381,10 @@ contract Vault is ReentrancyGuard, Ownable {
         // Close out before updating `deposits`
         _closeOutEpoch(stk.epochId);
 
-        amount = _withdraw(amount, msg.sender);
+        uint256 share = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit Redeem(msg.sender, stk.strike, stakeId, amount);
+        emit Redeem(msg.sender, stk.strike, stakeId, share);
     }
 
     // redeemTokens redeems unstaked tokens if the price is currently above the
@@ -392,10 +399,10 @@ contract Vault is ReentrancyGuard, Ownable {
         // Close out before updating `deposits`
         _closeOutEpoch(epochs[strike]);
 
-        amount = _withdraw(amount, msg.sender);
+        uint256 share = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit RedeemTokens(msg.sender, strike, amount);
+        emit RedeemTokens(msg.sender, strike, share);
     }
 
     function _closeOutEpoch(uint32 epochId) private {
