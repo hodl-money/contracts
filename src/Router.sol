@@ -60,7 +60,7 @@ contract Router is ReentrancyGuard, Ownable {
                   uint64 indexed strike,
                   uint256 amountIn,
                   uint256 amountOut,
-                  uint32 stakeId);
+                  uint48 stakeId);
 
     event HodlSell(address indexed user,
                    uint64 indexed strike,
@@ -212,7 +212,7 @@ contract Router is ReentrancyGuard, Ownable {
         return amountOut;
     }
 
-    function hodlBuy(uint64 strike, uint256 minOut, bool shouldStake) external nonReentrant payable returns (uint256, uint32) {
+    function hodlBuy(uint64 strike, uint256 minOut, bool shouldStake) external nonReentrant payable returns (uint256, uint48) {
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -236,7 +236,7 @@ contract Router is ReentrancyGuard, Ownable {
                 sqrtPriceLimitX96: 0 });
 
         uint256 out = swapRouter.exactInputSingle(params);
-        uint32 stakeId = 0;
+        uint48 stakeId = 0;
 
         if (shouldStake) {
             stakeId = vault.hodlStake(strike, out, msg.sender);

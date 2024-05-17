@@ -91,7 +91,7 @@ contract Vault is ReentrancyGuard, Ownable {
     uint256 public constant FEE_BASIS = 100_00;
     uint256 public constant MAX_FEE = 10_00;  // 10%
 
-    uint32 public nextId = 1;
+    uint48 public nextId = 1;
     uint256 public fee = 0;
 
     IYieldSource public immutable source;
@@ -108,30 +108,28 @@ contract Vault is ReentrancyGuard, Ownable {
     // Track staked hodl tokens, which are eligible for redemption
     struct HodlStake {
         address user;
-        uint64 strike;
-        uint32 epochId;
+        uint48 epochId;
         uint256 amount;
     }
-    mapping (uint32 stakedId => HodlStake) public hodlStakes;
+    mapping (uint48 stakedId => HodlStake) public hodlStakes;
 
     struct YStake {
         address user;
-        uint64 strike;
-        uint32 epochId;
+        uint48 epochId;
         uint256 amount;
         uint256 claimed;
         uint256 acc;
     }
-    mapping (uint32 stakeId => YStake) public yStakes;
+    mapping (uint48 stakeId => YStake) public yStakes;
 
     // Amount of y tokens staked in an epoch
-    mapping (uint32 epochId => uint256 amount) public yStaked;
+    mapping (uint48 epochId => uint256 amount) public yStaked;
 
     // Amount of y tokens staked in total
     uint256 public yStakedTotal;
 
     // For terminated epoch, the final yield per token
-    mapping (uint32 epochId => uint256 ypt) public terminalYieldPerToken;
+    mapping (uint48 epochId => uint256 ypt) public terminalYieldPerToken;
 
     // Amount of total deposits
     uint256 public deposits;
@@ -153,10 +151,10 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 yieldPerTokenAcc;
         uint256 cumulativeYieldAcc;
     }
-    mapping (uint32 epochId => EpochInfo) infos;
+    mapping (uint48 epochId => EpochInfo) infos;
 
     // Map strike to active epoch ID
-    mapping (uint64 strike => uint32 epochId) public epochs;
+    mapping (uint64 strike => uint48 epochId) public epochs;
 
     // Events
     event SetTreasury(address treasury);
@@ -176,7 +174,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
     event Redeem(address indexed user,
                  uint64 indexed strike,
-                 uint32 indexed stakeId,
+                 uint48 indexed stakeId,
                  uint256 amount);
 
     event RedeemTokens(address indexed user,
@@ -185,27 +183,27 @@ contract Vault is ReentrancyGuard, Ownable {
 
     event HodlStaked(address indexed user,
                      uint64 indexed strike,
-                     uint32 indexed stakeId,
+                     uint48 indexed stakeId,
                      uint256 amount);
 
     event HodlUnstake(address indexed user,
                       uint64 indexed strike,
-                      uint32 indexed stakeId,
+                      uint48 indexed stakeId,
                       uint256 amount);
 
     event YStaked(address indexed user,
                   uint64 indexed strike,
-                  uint32 indexed stakeId,
+                  uint48 indexed stakeId,
                   uint256 amount);
 
     event YUnstake(address indexed user,
                    uint64 indexed strike,
-                   uint32 indexed stakeId,
+                   uint48 indexed stakeId,
                    uint256 amount);
 
     event Claim(address indexed user,
                 uint64 indexed strike,
-                uint32 indexed stakeId,
+                uint48 indexed stakeId,
                 uint256 amount);
 
     constructor(address source_,
@@ -256,7 +254,7 @@ contract Vault is ReentrancyGuard, Ownable {
         return x < y ? x : y;
     }
 
-    function _checkpoint(uint32 epochId) internal {
+    function _checkpoint(uint48 epochId) internal {
         uint256 ypt = yieldPerToken();
         uint256 total = totalCumulativeYield();
 
@@ -310,7 +308,7 @@ contract Vault is ReentrancyGuard, Ownable {
         return amount;
     }
 
-    function canRedeem(uint32 stakeId, uint80 roundId) public view returns (bool) {
+    function canRedeem(uint48 stakeId, uint80 roundId) public view returns (bool) {
         HodlStake storage stk = hodlStakes[stakeId];
 
         // Check if there is anything to redeem
@@ -321,14 +319,15 @@ contract Vault is ReentrancyGuard, Ownable {
         // Check the two conditions that enable redemption:
 
         // (1) If price is currently above strike
-        if (oracle.price(roundId) >= stk.strike &&
+        uint64 strike = infos[stk.epochId].strike;
+        if (oracle.price(roundId) >= strike &&
             oracle.timestamp(roundId) >= infos[stk.epochId].timestamp) {
 
             return true;
         }
 
         // (2) If this is a passed epoch
-        if (stk.epochId != epochs[stk.strike]) {
+        if (stk.epochId != epochs[strike]) {
             return true;
         }
 
@@ -368,7 +367,7 @@ contract Vault is ReentrancyGuard, Ownable {
     // redeem converts a stake into the underlying tokens if the price has
     // touched the strike. The redemption can happen even if the price later
     // dips below.
-    function redeem(uint32 stakeId, uint80 roundId, uint256 amount) external nonReentrant {
+    function redeem(uint48 stakeId, uint80 roundId, uint256 amount) external nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
 
         require(stk.user == msg.sender, "redeem user");
@@ -384,7 +383,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 share = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit Redeem(msg.sender, stk.strike, stakeId, share);
+        emit Redeem(msg.sender, infos[stk.epochId].strike, stakeId, share);
     }
 
     // redeemTokens redeems unstaked tokens if the price is currently above the
@@ -405,7 +404,7 @@ contract Vault is ReentrancyGuard, Ownable {
         emit RedeemTokens(msg.sender, strike, share);
     }
 
-    function _closeOutEpoch(uint32 epochId) private {
+    function _closeOutEpoch(uint48 epochId) private {
         if (infos[epochId].closed) {
             return;
         }
@@ -436,19 +435,18 @@ contract Vault is ReentrancyGuard, Ownable {
     // yStake takes y tokens and stakes them, which makes those tokens receive
     // yield. Only staked y tokens receive yield. This is to enable proper yield
     // accounting in relation to hodl token redemptions.
-    function yStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint32) {
+    function yStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint48) {
         require(yMulti.balanceOf(msg.sender, strike) >= amount, "y stake balance");
-        uint32 epochId = epochs[strike];
+        uint48 epochId = epochs[strike];
 
         _checkpoint(epochId);
 
         yMulti.burn(msg.sender, strike, amount);
-        uint32 id = nextId++;
+        uint48 id = nextId++;
 
         uint256 ypt = yieldPerToken();
         yStakes[id] = YStake({
             user: user,
-            strike: strike,
             epochId: epochId,
             amount: amount,
             // + 1 to tip rounding error in protocol favor
@@ -466,7 +464,7 @@ contract Vault is ReentrancyGuard, Ownable {
     // yUnstake takes a stake and returns all the y tokens to the user. For
     // simplicity, partial unstakes are not possible. The user may unstake
     // entirely, and then re-stake a portion of his tokens.
-    function yUnstake(uint32 stakeId, address user) external nonReentrant {
+    function yUnstake(uint48 stakeId, address user) external nonReentrant {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y unstake user");
         require(stk.amount > 0, "y unstake zero");
@@ -481,15 +479,16 @@ contract Vault is ReentrancyGuard, Ownable {
         yStakedTotal -= amount;
         stk.amount = 0;
 
-        yMulti.mint(user, stk.strike, amount);
+        uint64 strike = infos[stk.epochId].strike;
+        yMulti.mint(user, strike, amount);
 
-        emit YUnstake(user, stk.strike, stakeId, amount);
+        emit YUnstake(user, strike, stakeId, amount);
     }
 
     // _stakeYpt somputes the yield per token of a particular stake of y tokens.
-    function _stakeYpt(uint32 stakeId) internal view returns (uint256) {
+    function _stakeYpt(uint48 stakeId) internal view returns (uint256) {
         YStake storage stk = yStakes[stakeId];
-        if (epochs[stk.strike] == stk.epochId) {
+        if (epochs[infos[stk.epochId].strike] == stk.epochId) {
             // Active epoch
             return yieldPerToken();
         } else {
@@ -500,7 +499,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
     // claimable computes the amount of underlying available to claim for a
     // particular stake.
-    function claimable(uint32 stakeId) public view returns (uint256) {
+    function claimable(uint48 stakeId) public view returns (uint256) {
         YStake storage stk = yStakes[stakeId];
 
         uint256 c;
@@ -518,7 +517,7 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     // claim transfers to the user his claimable yield.
-    function claim(uint32 stakeId) external nonReentrant {
+    function claim(uint48 stakeId) external nonReentrant {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y claim user");
 
@@ -526,20 +525,19 @@ contract Vault is ReentrancyGuard, Ownable {
         stk.claimed += amount;
         claimed += amount;
 
-        emit Claim(msg.sender, stk.strike, stakeId, amount);
+        emit Claim(msg.sender, infos[stk.epochId].strike, stakeId, amount);
     }
 
     // hodlStake takes some hodl tokens, and stakes them. This make them
     // eligible for redemption when the strike price hits.
-    function hodlStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint32) {
+    function hodlStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint48) {
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "hodl stake balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
 
-        uint32 id = nextId++;
+        uint48 id = nextId++;
         hodlStakes[id] = HodlStake({
             user: user,
-            strike: strike,
             epochId: epochs[strike],
             amount: amount });
 
@@ -550,16 +548,17 @@ contract Vault is ReentrancyGuard, Ownable {
 
     // hodlUnstake can be used to return some portion of staked tokens to the
     // user.
-    function hodlUnstake(uint32 stakeId, uint256 amount, address user) external nonReentrant {
+    function hodlUnstake(uint48 stakeId, uint256 amount, address user) external nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
         require(stk.user == msg.sender, "hodl unstake user");
         require(stk.amount >= amount, "hodl unstake amount");
 
-        hodlMulti.mint(user, stk.strike, amount);
+        uint64 strike = infos[stk.epochId].strike;
+        hodlMulti.mint(user, strike, amount);
 
         stk.amount -= amount;
 
-        emit HodlUnstake(user, stk.strike, stakeId, amount);
+        emit HodlUnstake(user, strike, stakeId, amount);
     }
 
     // yieldPerToken computes the global yield per token, meaning how much
@@ -577,7 +576,7 @@ contract Vault is ReentrancyGuard, Ownable {
     // cumulativeYield calculates the total amount of yield a particular epoch
     // is entitled to. This yield is split accordingly among the staked y
     // tokens.
-    function cumulativeYield(uint32 epochId) public view returns (uint256) {
+    function cumulativeYield(uint48 epochId) public view returns (uint256) {
         require(epochId < nextId, "invalid epoch");
 
         uint256 ypt;

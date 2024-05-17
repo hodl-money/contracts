@@ -88,7 +88,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
         vm.startPrank(alice);
 
         for (uint256 i = 0; i < 5; i++) {
-            (uint256 amountHodl, uint32 stakeId) = router.hodlBuy{value: 0.1 ether}(strike1, 0, true);
+            (uint256 amountHodl, uint48 stakeId) = router.hodlBuy{value: 0.1 ether}(strike1, 0, true);
             router.vault().hodlUnstake(stakeId, amountHodl, alice);
             IERC20 token = vault.deployments(strike1);
             token.approve(address(router), amountHodl);
@@ -110,7 +110,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
             uint256 amount = 0.01 ether;
             (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
             router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
-            uint32 stakeId = router.vault().yStake(strike1, amountY, alice);
+            uint48 stakeId = router.vault().yStake(strike1, amountY, alice);
             router.vault().yUnstake(stakeId, alice);
             vault.yMulti().setApprovalForAll(address(router), true);
             (uint256 loanSell, ) = router.previewYSell(strike1, amountY);
@@ -169,7 +169,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
 
         vm.deal(alice, 1 ether);
         vm.startPrank(alice);
-        (uint256 out, uint32 stakeId) = router.hodlBuy{value: 0.2 ether}(strike1, 0, true);
+        (uint256 out, uint48 stakeId) = router.hodlBuy{value: 0.2 ether}(strike1, 0, true);
         vm.stopPrank();
 
         assertEq(out, 233732374240915488);
@@ -202,13 +202,13 @@ contract RouterTest is BaseTest, ERC1155Holder {
         router.yBuy{value: 0.2 ether}(strike1, loan, amountY + 1);
 
         uint256 outY = router.yBuy{value: 0.2 ether}(strike1, loan, amountY - 10);
-        uint32 stake1 = router.vault().yStake(strike1, outY, alice);
+        uint48 stake1 = router.vault().yStake(strike1, outY, alice);
         vm.stopPrank();
 
         assertClose(outY, amountY, 10);
 
         {
-            ( , , , uint256 stakeY, , ) = vault.yStakes(stake1);
+            ( , , uint256 stakeY, , ) = vault.yStakes(stake1);
             assertClose(stakeY, amountY, 10);
         }
 
@@ -281,7 +281,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
         for (uint256 i = 0; i < 5; i++) {
             (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
             router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
-            uint32 stakeId = router.vault().yStake(strike1, amountY, alice);
+            uint48 stakeId = router.vault().yStake(strike1, amountY, alice);
             router.vault().yUnstake(stakeId, alice);
             vault.yMulti().setApprovalForAll(address(router), true);
             (uint256 loanSell, ) = router.previewYSell(strike1, amountY);
@@ -368,7 +368,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
             uint256 amount = 0.01 ether;
             (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
             router.yBuy{value: amount}(strike1, loanBuy, amountY - 10);
-            uint32 stakeId = router.vault().yStake(strike1, amountY, alice);
+            uint48 stakeId = router.vault().yStake(strike1, amountY, alice);
             router.vault().yUnstake(stakeId, alice);
             vault.yMulti().setApprovalForAll(address(router), true);
             (uint256 loanSell, ) = router.previewYSell(strike1, amountY);

@@ -46,17 +46,17 @@ contract VaultTest is BaseTest {
         // Mint hodl tokens
         vm.startPrank(alice);
         vault.mint{value: 3 ether}(strike1);
-        uint32 epoch1 = vault.epochs(strike1);
+        uint48 epoch1 = vault.epochs(strike1);
         vm.stopPrank();
 
         vm.startPrank(bob);
         vault.mint{value: 4 ether}(strike2);
-        uint32 epoch2 = vault.epochs(strike2);
+        uint48 epoch2 = vault.epochs(strike2);
         vm.stopPrank();
 
         vm.startPrank(chad);
         vault.mint{value: 8 ether}(strike3);
-        uint32 epoch3 = vault.epochs(strike3);
+        uint48 epoch3 = vault.epochs(strike3);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 3 ether, 10);
@@ -82,7 +82,7 @@ contract VaultTest is BaseTest {
 
         // Stake hodl tokens
         vm.startPrank(alice);
-        uint32 stake1 = vault.hodlStake(strike1, 2 ether, alice);
+        uint48 stake1 = vault.hodlStake(strike1, 2 ether, alice);
         vm.stopPrank();
 
         vm.startPrank(bob);
@@ -90,7 +90,7 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
 
         vm.startPrank(chad);
-        uint32 stake3 = vault.hodlStake(strike3, 8 ether - 2, chad);
+        uint48 stake3 = vault.hodlStake(strike3, 8 ether - 2, chad);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
@@ -104,15 +104,15 @@ contract VaultTest is BaseTest {
 
         // Stake y token
         vm.startPrank(alice);
-        uint32 stake4 = vault.yStake(strike1, 1 ether, alice);
+        uint48 stake4 = vault.yStake(strike1, 1 ether, alice);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        uint32 stake5 = vault.yStake(strike2, 4 ether, bob);
+        uint48 stake5 = vault.yStake(strike2, 4 ether, bob);
         vm.stopPrank();
 
         vm.startPrank(chad);
-        uint32 stake6 = vault.yStake(strike3, 8 ether - 1, chad);
+        uint48 stake6 = vault.yStake(strike3, 8 ether - 1, chad);
         vm.stopPrank();
 
         assertClose(vault.yMulti().balanceOf(alice, strike1), 2 ether, 10);
@@ -226,7 +226,7 @@ contract VaultTest is BaseTest {
 
         vm.startPrank(chad);
         vault.mint{value: 8 ether}(strike3);
-        uint32 epoch4 = vault.epochs(strike3);
+        uint48 epoch4 = vault.epochs(strike3);
         assertClose(vault.hodlMulti().balanceOf(chad, strike3), 8 ether, 10);
         vm.stopPrank();
 
@@ -379,7 +379,7 @@ contract VaultTest is BaseTest {
         vault.mint{value: 4 ether}(strike1);
 
         // Stake 2 of 4 before strike hits
-        uint32 stake1 = vault.hodlStake(strike1, 2 ether, alice);
+        uint48 stake1 = vault.hodlStake(strike1, 2 ether, alice);
 
         // Strike hits
         oracle.setPrice(strike1 + 1, 0);
@@ -394,7 +394,7 @@ contract VaultTest is BaseTest {
         vault.redeem(stake1, 0, 1 ether);
 
         // Stake 1 at same strike
-        uint32 stake2 = vault.hodlStake(strike1, 1 ether, alice);
+        uint48 stake2 = vault.hodlStake(strike1, 1 ether, alice);
 
         // The newly staked tokens cannot be redeemed
         vm.expectRevert("cannot redeem");
@@ -407,7 +407,7 @@ contract VaultTest is BaseTest {
         vault.redeem(stake2, 0, 1 ether);
 
         // Stake and redeem last 1 at that strike
-        uint32 stake3 = vault.hodlStake(strike1, 1 ether - 10, alice);
+        uint48 stake3 = vault.hodlStake(strike1, 1 ether - 10, alice);
         vault.redeem(stake3, 0, 1 ether - 10);
 
         assertClose(IERC20(steth).balanceOf(alice), 4 ether, 100);
@@ -425,7 +425,7 @@ contract VaultTest is BaseTest {
 
         // Stake y token
         vm.startPrank(alice);
-        uint32 stake1 = vault.yStake(strike1, 1 ether, alice);
+        uint48 stake1 = vault.yStake(strike1, 1 ether, alice);
         vm.stopPrank();
 
         // Verify it gets yield
@@ -457,11 +457,11 @@ contract VaultTest is BaseTest {
 
         // Alice stakes 2, bob stakes 1n
         vm.startPrank(alice);
-        uint32 stake2 = vault.yStake(strike1, 2 ether - 2, alice);
+        uint48 stake2 = vault.yStake(strike1, 2 ether - 2, alice);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        uint32 stake3 = vault.yStake(strike1, 1 ether, bob);
+        uint48 stake3 = vault.yStake(strike1, 1 ether, bob);
         vm.stopPrank();
 
         assertClose(vault.yMulti().balanceOf(alice, strike1), 0, 100);
@@ -504,7 +504,7 @@ contract VaultTest is BaseTest {
 
         // Stake y token
         vm.startPrank(alice);
-        uint32 stake4 = vault.yStake(strike1, 1 ether, chad);
+        uint48 stake4 = vault.yStake(strike1, 1 ether, chad);
         vm.stopPrank();
 
         simulateYield(0.2 ether);
@@ -534,13 +534,13 @@ contract VaultTest is BaseTest {
 
         // Stake hodl token
         vm.startPrank(alice);
-        uint32 stake1 = vault.hodlStake(strike1, 2 ether, alice);
+        uint48 stake1 = vault.hodlStake(strike1, 2 ether, alice);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 2 ether, 10);
         assertClose(vault.hodlMulti().balanceOf(bob, strike1), 0, 10);
         {
-            ( , , , uint256 amount) = vault.hodlStakes(stake1);
+            ( , , uint256 amount) = vault.hodlStakes(stake1);
             assertClose(amount, 2 ether, 10);
         }
 
@@ -553,15 +553,15 @@ contract VaultTest is BaseTest {
         assertClose(vault.hodlMulti().balanceOf(bob, strike1), 1 ether, 10);
 
         vm.startPrank(bob);
-        uint32 stake2 = vault.hodlStake(strike1, 1 ether, bob);
+        uint48 stake2 = vault.hodlStake(strike1, 1 ether, bob);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 2 ether, 10);
         assertClose(vault.hodlMulti().balanceOf(bob, strike1), 0, 10);
 
         {
-            ( , , , uint256 amount1) = vault.hodlStakes(stake1);
-            ( , , , uint256 amount2) = vault.hodlStakes(stake2);
+            ( , , uint256 amount1) = vault.hodlStakes(stake1);
+            ( , , uint256 amount2) = vault.hodlStakes(stake2);
             assertClose(amount1, 1 ether, 10);
             assertClose(amount2, 1 ether, 10);
         }
@@ -585,8 +585,8 @@ contract VaultTest is BaseTest {
         assertClose(IERC20(steth).balanceOf(bob), 1 ether, 10);
 
         {
-            ( , , , uint256 amount1) = vault.hodlStakes(stake1);
-            ( , , , uint256 amount2) = vault.hodlStakes(stake2);
+            ( , , uint256 amount1) = vault.hodlStakes(stake1);
+            ( , , uint256 amount2) = vault.hodlStakes(stake2);
             assertClose(amount1, 0, 10);
             assertClose(amount2, 0, 10);
         }
@@ -608,7 +608,7 @@ contract VaultTest is BaseTest {
         // Alice mints hodl
         vm.startPrank(alice);
         vault.mint{value: 1 ether}(strike1);
-        uint32 epoch1 = vault.epochs(strike1);
+        uint48 epoch1 = vault.epochs(strike1);
         vm.stopPrank();
 
         // Bob mints hodl
@@ -623,13 +623,13 @@ contract VaultTest is BaseTest {
 
         // Alice stakes hodl + y
         vm.startPrank(alice);
-        uint32 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
+        uint48 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
         vault.yStake(strike1, 1 ether - 2, alice);
         vm.stopPrank();
 
         // Bob stakes hodl + y
         vm.startPrank(bob);
-        uint32 bobHodlStake = vault.hodlStake(strike1, 2 ether - 2, bob);
+        uint48 bobHodlStake = vault.hodlStake(strike1, 2 ether - 2, bob);
         vault.yStake(strike1, 2 ether - 2, bob);
         vm.stopPrank();
 
@@ -705,8 +705,8 @@ contract VaultTest is BaseTest {
         // Alice mints + stakes hodl
         vm.startPrank(alice);
         vault.mint{value: 4 ether}(strike1);
-        uint32 epoch1 = vault.epochs(strike1);
-        uint32 stake1 = vault.hodlStake(strike1, 3 ether, alice);
+        uint48 epoch1 = vault.epochs(strike1);
+        uint48 stake1 = vault.hodlStake(strike1, 3 ether, alice);
         vm.stopPrank();
 
         // Bob mints hodl, doesn't stake
@@ -722,7 +722,7 @@ contract VaultTest is BaseTest {
 
         // Alice stakes y tokens for Degen
         vm.startPrank(alice);
-        uint32 stake2 = vault.yStake(strike1, 1 ether, degen);
+        uint48 stake2 = vault.yStake(strike1, 1 ether, degen);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
@@ -775,9 +775,9 @@ contract VaultTest is BaseTest {
 
         // Simulate yield, it should be on a new epoch
         vm.startPrank(alice);
-        uint32 epoch2 = vault.epochs(strike1);
+        uint48 epoch2 = vault.epochs(strike1);
         vault.mint{value: 4 ether}(strike1);
-        uint32 stake3 = vault.yStake(strike1, 1 ether, degen);
+        uint48 stake3 = vault.yStake(strike1, 1 ether, degen);
         vm.stopPrank();
 
         assertYStake(stake3, degen, 1 ether, 0);
@@ -831,7 +831,7 @@ contract VaultTest is BaseTest {
         // Chad mints hodl, stakes, fails to redeem
         vm.startPrank(chad);
         vault.mint{value: 4 ether}(strike1);
-        uint32 stake4 = vault.hodlStake(strike1, 2 ether, chad);
+        uint48 stake4 = vault.hodlStake(strike1, 2 ether, chad);
         vm.expectRevert("cannot redeem");
         vault.redeem(stake4, 0, 1 ether);
         vm.stopPrank();
@@ -1032,20 +1032,20 @@ contract VaultTest is BaseTest {
 
         // Stake first batch of y tokens
         vm.startPrank(alice);
-        uint32 stake1 = vault.yStake(strike1, 1 ether, alice);
+        uint48 stake1 = vault.yStake(strike1, 1 ether, alice);
         vm.stopPrank();
 
         simulateYield(1 ether);
 
-        ( , , , , uint256 claimed1, ) = vault.yStakes(stake1);
+        ( , , , uint256 claimed1, ) = vault.yStakes(stake1);
         assertEq(claimed1, 1);
 
         // Stake more y tokens
         vm.startPrank(alice);
-        uint32 stake2 = vault.yStake(strike1, 1 ether, alice);
+        uint48 stake2 = vault.yStake(strike1, 1 ether, alice);
         vm.stopPrank();
 
-        ( , , , , uint256 claimed2, ) = vault.yStakes(stake2);
+        ( , , , uint256 claimed2, ) = vault.yStakes(stake2);
         assertEq(claimed2, 1 ether);
 
         assertEq(vault.claimable(stake1), 1 ether - 2);
@@ -1073,12 +1073,12 @@ contract VaultTest is BaseTest {
 
         // Alice stakes hodl
         vm.startPrank(alice);
-        uint32 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
+        uint48 aliceHodlStake = vault.hodlStake(strike1, 1 ether - 2, alice);
         vm.stopPrank();
 
         // Bob stakes hodl
         vm.startPrank(bob);
-        uint32 bobHodlStake = vault.hodlStake(strike2, 1 ether - 2, bob);
+        uint48 bobHodlStake = vault.hodlStake(strike2, 1 ether - 2, bob);
         vm.stopPrank();
 
         // Price moves to above strike1
@@ -1131,7 +1131,7 @@ contract VaultTest is BaseTest {
         vault.mint{value: 2 ether}(strike1);
 
         // Stake before strike hits
-        uint32 stake1 = vault.hodlStake(strike1, 2 ether - 1, alice);
+        uint48 stake1 = vault.hodlStake(strike1, 2 ether - 1, alice);
 
         // Verify timestamps + price, then move forward
         assertEq(block.timestamp, 1696215371);
@@ -1250,7 +1250,7 @@ contract VaultTest is BaseTest {
         source.transferOwnership(address(vault));
     }
 
-    function claimAndVerify(uint32 stakeId, address user, uint256 amount, bool dumpCoins) internal {
+    function claimAndVerify(uint48 stakeId, address user, uint256 amount, bool dumpCoins) internal {
         assertClose(vault.claimable(stakeId), amount, 10);
 
         uint256 before = IERC20(steth).balanceOf(user);
@@ -1279,18 +1279,18 @@ contract VaultTest is BaseTest {
         }
     }
 
-    function assertHodlStake(uint32 stakeId, address expectedUser, uint256 expectedAmount) public {
-        (address user, , , uint256 amount) = vault.hodlStakes(stakeId);
+    function assertHodlStake(uint48 stakeId, address expectedUser, uint256 expectedAmount) public {
+        (address user, , uint256 amount) = vault.hodlStakes(stakeId);
         assertEq(expectedUser, user);
         assertClose(expectedAmount, amount, 10);
     }
 
-    function assertYStake(uint32 stakeId,
+    function assertYStake(uint48 stakeId,
                           address expectedUser,
                           uint256 expectedAmount,
                           uint256 expectedClaimable) public {
 
-        (address user, , , uint256 amount, , ) = vault.yStakes(stakeId);
+        (address user, , uint256 amount, , ) = vault.yStakes(stakeId);
         assertEq(expectedUser, user);
         assertClose(expectedAmount, amount, 10);
         assertClose(vault.claimable(stakeId), expectedClaimable, 10);
