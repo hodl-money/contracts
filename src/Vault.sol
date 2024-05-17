@@ -383,7 +383,7 @@ contract Vault is ReentrancyGuard, Ownable {
     // redeemTokens redeems unstaked tokens if the price is currently above the
     // strike. Unlike redeemStake, the redemption cannot happen if the price
     // later dips below.
-    function redeemTokens(uint64 strike, uint256 amount) external {
+    function redeemTokens(uint64 strike, uint256 amount) external nonReentrant {
         require(oracle.price(0) >= strike, "below strike");
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
 
