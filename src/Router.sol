@@ -31,9 +31,9 @@ contract Router is ReentrancyGuard, Ownable {
 
     uint8 public constant LOAN_Y_BUY = 1;
     uint8 public constant LOAN_Y_SELL = 2;
-    uint24 public constant FEE = 3000;
     uint256 public constant SEARCH_TOLERANCE = 1e9;
 
+    uint24 public hodlPoolFee = 3000;
     uint24 public wstethWethPoolFee = 100;
 
     Vault public immutable vault;
@@ -79,6 +79,7 @@ contract Router is ReentrancyGuard, Ownable {
                 uint256 amountOut,
                 uint256 loan);
 
+    event SetHodlPoolFee(uint24 fee);
     event SetWstethWethPoolFee(uint24 fee);
 
     constructor(address vault_,
@@ -120,7 +121,7 @@ contract Router is ReentrancyGuard, Ownable {
             ? (address(hodlToken), address(weth))
             : (address(weth), address(hodlToken));
 
-        return uniswapV3Factory.getPool(token0, token1, FEE);
+        return uniswapV3Factory.getPool(token0, token1, hodlPoolFee);
     }
 
     function setWstethWethPoolFee(uint24 wstethWethPoolFee_) external onlyOwner {
@@ -129,9 +130,18 @@ contract Router is ReentrancyGuard, Ownable {
         emit SetWstethWethPoolFee(wstethWethPoolFee);
     }
 
+    function setHodlPoolFee(uint24 hodlPoolFee_) external onlyOwner {
+        hodlPoolFee = hodlPoolFee_;
+
+        emit SetHodlPoolFee(hodlPoolFee);
+    }
+
     // Add liquidity respecting the fact that 1 hodl token should never trade
     // above a price of 1 ETH.
-    function addLiquidity(uint64 strike, uint256 mintAmount, uint24 tick) external nonReentrant payable {
+    function addLiquidity(uint64 strike,
+                          uint256 mintAmount,
+                          uint24 tick) external nonReentrant payable {
+
         IERC20 hodlToken = vault.deployments(strike);
         require(address(hodlToken) != address(0), "no deployed ERC20");
 
@@ -142,9 +152,7 @@ contract Router is ReentrancyGuard, Ownable {
         uint256 token0Amount;
         uint256 token1Amount;
 
-        uint256 before = hodlToken.balanceOf(address(this));
-        vault.mint{value: mintAmount}(strike);
-        uint256 delta = hodlToken.balanceOf(address(this)) - before;
+        uint256 delta = vault.mint{value: mintAmount}(strike);
 
         // y isn't used for liquidity, give it to the user
         vault.yMulti().safeTransferFrom(address(this), msg.sender, strike, delta, "");
@@ -171,7 +179,7 @@ contract Router is ReentrancyGuard, Ownable {
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
             token0: token0,
             token1: token1,
-            fee: FEE,
+            fee: hodlPoolFee,
             tickLower: tickLower,
             tickUpper: tickUpper,
             amount0Desired: token0Amount,
@@ -201,7 +209,7 @@ contract Router is ReentrancyGuard, Ownable {
             tokenIn: address(weth),
             tokenOut: address(token),
             amountIn: amount,
-            fee: FEE,
+            fee: hodlPoolFee,
             sqrtPriceLimitX96: 0 });
 
         (uint256 amountOut, , , ) = quoterV2.quoteExactInputSingle(params);
@@ -225,7 +233,7 @@ contract Router is ReentrancyGuard, Ownable {
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(weth),
                 tokenOut: address(token),
-                fee: FEE,
+                fee: hodlPoolFee,
                 recipient: receiver,
                 deadline: block.timestamp + 1,
                 amountIn: msg.value,
@@ -256,7 +264,7 @@ contract Router is ReentrancyGuard, Ownable {
             tokenIn: address(token),
             tokenOut: address(weth),
             amountIn: amount,
-            fee: FEE,
+            fee: hodlPoolFee,
             sqrtPriceLimitX96: 0 });
 
         (uint256 out, , , ) = quoterV2.quoteExactInputSingle(params);
@@ -277,7 +285,7 @@ contract Router is ReentrancyGuard, Ownable {
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(token),
                 tokenOut: address(weth),
-                fee: FEE,
+                fee: hodlPoolFee,
                 recipient: msg.sender,
                 deadline: block.timestamp + 1,
                 amountIn: amount,
@@ -296,10 +304,10 @@ contract Router is ReentrancyGuard, Ownable {
                              uint256 value,
                              uint256 lo,
                              uint256 hi,
-                             uint256 n) private returns (uint256) {
+                             uint256 n) private returns (uint256, uint256) {
 
         if (n == 0) {
-            return 0;
+            return (0, 0);
         }
 
         IERC20 token = vault.deployments(strike);
@@ -307,26 +315,25 @@ contract Router is ReentrancyGuard, Ownable {
         uint256 fee = _flashLoanFee(loan);
         uint256 debt = loan + fee;
 
+        (uint256 afterFees, ) = vault.previewMint(value + loan);
+
         IQuoterV2.QuoteExactInputSingleParams memory params = IQuoterV2.QuoteExactInputSingleParams({
             tokenIn: address(token),
             tokenOut: address(weth),
-            amountIn: value + loan,
-            fee: FEE,
+            amountIn: afterFees,
+            fee: hodlPoolFee,
             sqrtPriceLimitX96: 0 });
 
         (uint256 out, , , ) = quoterV2.quoteExactInputSingle(params);
 
         if (out > debt) {
-
             // Output is enough to payoff loan + fee, can take larger loan
-            uint256 diff = out - debt;
-            if (diff < SEARCH_TOLERANCE) {
-                return loan;
+            if (out - debt < SEARCH_TOLERANCE) {
+                return (loan, afterFees);
             }
+            return _searchLoanSize(strike, value, loan, hi, n - 1);
 
-            return _searchLoanSize(strike, value, loan, hi, n -1);
         } else {
-
             // Output to small to payoff loan + fee, reduce loan size
             return _searchLoanSize(strike, value, lo, loan, n - 1);
         }
@@ -343,15 +350,15 @@ contract Router is ReentrancyGuard, Ownable {
         address uniPool = pool(strike);
         require(uniPool != address(0), "no uni pool");
 
-        uint256 loan = _searchLoanSize(strike, value, 0, 1000 * value, 64);
-
-        // Amount of y tokens output
-        uint256 out = value + loan;
+        (uint256 loan, uint256 out) = _searchLoanSize(strike, value, 0, 1000 * value, 64);
 
         return (out, loan);
     }
 
-    function yBuy(uint64 strike, uint256 loan, uint256 minOut) external nonReentrant payable returns (uint256) {
+    function yBuy(uint64 strike,
+                  uint256 loan,
+                  uint256 minOut) external nonReentrant payable returns (uint256) {
+
         uint256 value = msg.value;
         bytes memory data = abi.encode(LOAN_Y_BUY, msg.sender, strike, value + loan, minOut);
 
@@ -382,12 +389,7 @@ contract Router is ReentrancyGuard, Ownable {
         weth.withdraw(loan);
 
         require(address(this).balance >= amount, "expected balance >= amount");
-        uint256 before = token.balanceOf(address(this));
-        vault.mint{value: amount}(strike);
-        uint256 delta = token.balanceOf(address(this)) - before;
-
-        // handle steth off by 1 error
-        amount = _assertMaxDiffAndTakeSmaller(amount, delta, 1e6);
+        amount = vault.mint{value: amount}(strike);
 
         // sell hodl tokens to repay debt
         token.forceApprove(address(swapRouter), amount);
@@ -396,11 +398,11 @@ contract Router is ReentrancyGuard, Ownable {
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(token),
                 tokenOut: address(weth),
-                fee: FEE,
+                fee: hodlPoolFee,
                 recipient: address(this),
                 deadline: block.timestamp + 1,
                 amountIn: amount,
-                amountOutMinimum: loan + fee,
+                amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0 });
         swapRouter.exactInputSingle(params);
 
@@ -429,7 +431,7 @@ contract Router is ReentrancyGuard, Ownable {
             tokenIn: address(weth),
             tokenOut: address(token),
             amount: amount, // Amount means quantity hodl tokens output
-            fee: FEE,
+            fee: hodlPoolFee,
             sqrtPriceLimitX96: 0 });
         (uint256 loan, , , ) = quoterV2.quoteExactOutputSingle(params);
 
@@ -502,7 +504,7 @@ contract Router is ReentrancyGuard, Ownable {
             ISwapRouter.ExactOutputSingleParams({
                 tokenIn: address(weth),
                 tokenOut: address(token),
-                fee: FEE,
+                fee: hodlPoolFee,
                 recipient: address(this),
                 deadline: block.timestamp + 1,
                 amountOut: amount,

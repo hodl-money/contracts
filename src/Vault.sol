@@ -282,7 +282,7 @@ contract Vault is ReentrancyGuard, Ownable {
         epochs[strike] = nextId++;
     }
 
-    function mint(uint64 strike) external nonReentrant payable {
+    function mint(uint64 strike) external nonReentrant payable returns (uint256) {
         require(oracle.price(0) < strike, "strike too low");
 
         uint256 value = msg.value;
@@ -306,6 +306,8 @@ contract Vault is ReentrancyGuard, Ownable {
         yMulti.mint(msg.sender, strike, amount);
 
         emit Mint(msg.sender, strike, amount);
+
+        return amount;
     }
 
     function canRedeem(uint32 stakeId, uint80 roundId) public view returns (bool) {

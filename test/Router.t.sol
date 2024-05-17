@@ -381,6 +381,34 @@ contract RouterTest is BaseTest, ERC1155Holder {
 
         assertEq(routerBalanceAfter, routerBalanceBefore);
     }
+
+    // https://github.com/code-423n4/2024-05-hodl-findings/issues/33
+    function testYBuysSellsFees() public {
+        initRouter();
+
+        vm.startPrank(alice);
+        router.hodlBuy{value: 0.2 ether}(strike1, 0, true);
+        vm.stopPrank();
+
+        (uint256 amountY, uint256 loan) = router.previewYBuy(strike1, 0.2 ether);
+        assertEq(amountY, 872715808468637986);
+        assertEq(loan, 672715808468637986);
+
+        vault.setFee(1_00);
+        vault.setTreasury(address(1337));
+
+        (uint256 amountYFees, uint256 loanFees) = router.previewYBuy(strike1, 0.2 ether);
+        assertEq(amountYFees, 863988650383951607);
+        assertEq(loanFees, 672715808468637986);
+        assertLt(amountYFees, amountY);
+
+        oracle.setPrice(strike1 - 1, 0);
+
+        vm.startPrank(alice);
+        uint256 outY = router.yBuy{value: 0.2 ether}(strike1, loanFees, amountYFees - 10);
+        assertClose(outY, amountYFees, 1);
+        vm.stopPrank();
+    }
 }
 
 contract Drainer {
