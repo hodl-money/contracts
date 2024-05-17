@@ -5,7 +5,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { BaseTest } from  "./BaseTest.sol";
 import { FakeOracle } from  "./helpers/FakeOracle.sol";
-import { SlashableYieldSource } from  "./helpers/SlashableYieldSource.sol";
 
 import { IStEth } from "../src/interfaces/IStEth.sol";
 import { ILiquidityPool } from "../src/interfaces/ILiquidityPool.sol";
