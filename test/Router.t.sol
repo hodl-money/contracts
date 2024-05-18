@@ -288,9 +288,9 @@ contract RouterTest is BaseTest, ERC1155Holder {
             router.ySell(strike1, loanSell, amountY, 0);
         }
 
+        // Works after 1 wei transfer
         {
             (uint256 amountY, uint256 loanBuy) = router.previewYBuy(strike1, amount);
-            // Works after 1 wei transfer
             vm.deal(address(this), 1 wei);
             payable(address(router)).transfer(1 wei);
 
