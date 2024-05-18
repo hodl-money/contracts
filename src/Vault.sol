@@ -327,7 +327,7 @@ contract Vault is ReentrancyGuard, Ownable {
         }
 
         // (2) If this is a passed epoch
-        if (stk.epochId != epochs[strike]) {
+        if (infos[stk.epochId].closed) {
             return true;
         }
 
@@ -581,12 +581,13 @@ contract Vault is ReentrancyGuard, Ownable {
 
         uint256 ypt;
         uint64 strike = infos[epochId].strike;
-        if (epochs[strike] == epochId) {
-            // Active epoch
-            ypt = yieldPerToken() - infos[epochId].yieldPerTokenAcc;
-        } else {
+
+        if (infos[epochId].closed) {
             // Passed epoch
             ypt = terminalYieldPerToken[epochId] - infos[epochId].yieldPerTokenAcc;
+        } else {
+            // Active epoch
+            ypt = yieldPerToken() - infos[epochId].yieldPerTokenAcc;
         }
 
         return (infos[epochId].cumulativeYieldAcc +
