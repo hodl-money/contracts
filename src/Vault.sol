@@ -338,16 +338,16 @@ contract Vault is ReentrancyGuard, Ownable {
     // _withdraw computes and executes a withdraw. It handles negative rebases,
     // and returns the actual number of tokens sent to the user.
     function _withdraw(uint256 amount, address user) private returns (uint256) {
-        uint256 share = amount;
+        uint256 actual = amount;
 
         // Compute proportional share in case of negative rebase
         if (source.balance() < deposits) {
-            share = amount * source.balance() / deposits;
+            actual = amount * source.balance() / deposits;
         }
 
-        share = _min(share, source.balance());
-        source.withdraw(share, user);
-        return share;
+        actual = _min(actual, source.balance());
+        source.withdraw(actual, user);
+        return actual;
     }
 
     // merge combines equal parts y + hodl tokens into the underlying asset.
@@ -358,10 +358,10 @@ contract Vault is ReentrancyGuard, Ownable {
         hodlMulti.burn(msg.sender, strike, amount);
         yMulti.burn(msg.sender, strike, amount);
 
-        uint256 share = _withdraw(amount, msg.sender);
+        uint256 actual = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit Merge(msg.sender, strike, share);
+        emit Merge(msg.sender, strike, actual);
     }
 
     // redeem converts a stake into the underlying tokens if the price has
@@ -380,10 +380,10 @@ contract Vault is ReentrancyGuard, Ownable {
         // Close out before updating `deposits`
         _closeOutEpoch(stk.epochId);
 
-        uint256 share = _withdraw(amount, msg.sender);
+        uint256 actual = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit Redeem(msg.sender, infos[stk.epochId].strike, stakeId, share);
+        emit Redeem(msg.sender, infos[stk.epochId].strike, stakeId, actual);
     }
 
     // redeemTokens redeems unstaked tokens if the price is currently above the
@@ -398,10 +398,10 @@ contract Vault is ReentrancyGuard, Ownable {
         // Close out before updating `deposits`
         _closeOutEpoch(epochs[strike]);
 
-        uint256 share = _withdraw(amount, msg.sender);
+        uint256 actual = _withdraw(amount, msg.sender);
         deposits -= amount;
 
-        emit RedeemTokens(msg.sender, strike, share);
+        emit RedeemTokens(msg.sender, strike, actual);
     }
 
     function _closeOutEpoch(uint48 epochId) private {
@@ -580,7 +580,6 @@ contract Vault is ReentrancyGuard, Ownable {
         require(epochId < nextId, "invalid epoch");
 
         uint256 ypt;
-        uint64 strike = infos[epochId].strike;
 
         if (infos[epochId].closed) {
             // Passed epoch
