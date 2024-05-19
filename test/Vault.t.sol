@@ -1237,6 +1237,45 @@ contract VaultTest is BaseTest {
         assertEq(vault.yieldPerToken(), 0);
     }
 
+    function testStakeAfterStrikeHits() public {
+        initVault();
+
+        // Alice mints hodl
+        vm.startPrank(alice);
+
+        vault.mint{value: 2 ether}(strike1);
+
+        uint48 stake1 = vault.hodlStake(strike1, 1 ether, alice);
+
+        vm.expectRevert("cannot redeem");
+        vault.redeem(stake1, 0, 1 ether);
+
+        oracle.setPrice(strike1 + 1, 0);
+
+        // Stake before a redeem
+        uint48 stake2 = vault.hodlStake(strike1, 0.1 ether, alice);
+
+        vault.redeem(stake1, 0, 1 ether);
+
+        // Stake after a redeem
+        uint48 stake3 = vault.hodlStake(strike1, 0.1 ether, alice);
+        vault.redeem(stake3, 0, 0.1 ether);
+
+        // Stake after a redeem and after price drop
+        oracle.setPrice(strike1 - 1, 0);
+        uint48 stake4 = vault.hodlStake(strike1, 0.1 ether, alice);
+
+        // Redeem stake2, which was staked during price strike + 1
+        vault.redeem(stake2, 0, 0.1 ether);
+
+        // Cannot redeem stake5, which was staked at price strike - 1
+        vm.expectRevert("cannot redeem");
+        vault.redeem(stake4, 0, 0.1 ether);
+
+        vm.stopPrank();
+    }
+
+
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));
         IERC20(steth).transfer(address(vault.source()), amount);
