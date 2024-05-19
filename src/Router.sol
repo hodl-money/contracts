@@ -494,7 +494,7 @@ contract Router is ReentrancyGuard, Ownable {
         require(address(token) != address(0), "no deployed ERC20");
 
         // Use loaned weth to buy hodl token
-        IERC20(address(weth)).forceApprove(address(swapRouter), amount);
+        IERC20(address(weth)).forceApprove(address(swapRouter), loan);
         ISwapRouter.ExactOutputSingleParams memory params  =
             ISwapRouter.ExactOutputSingleParams({
                 tokenIn: address(weth),
