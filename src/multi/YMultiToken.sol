@@ -84,12 +84,16 @@ contract YMultiToken is ERC1155, Ownable {
         require(strikes.length == values.length, "mismatched update length");
 
         for (uint256 i = 0; i < strikes.length; ++i) {
+            uint256 value = values[i];
+
+            // Prevent 0 value transfers from initializing strikes with seq numbers
+            require(value > 0, "zero value transfer");
+
             uint256 strike = strikes[i];
             if (strikeSeqs[strike] == 0) {
                 strikeSeqs[strike] = nextId++;
             }
 
-            uint256 value = values[i];
             uint256 seq = strikeSeqs[strike];
 
             if (from != address(0)) {
