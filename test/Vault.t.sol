@@ -1208,16 +1208,21 @@ contract VaultTest is BaseTest {
         vm.deal(alice, 15 ether);
         vault.mint{value: 15 ether}(strike1);
         uint48 stake1 = vault.yStake(strike1, 5 ether, alice);
+        uint48 hodlStake1 = vault.hodlStake(strike1, 15 ether - 2, alice);
         vm.stopPrank();
 
         vm.startPrank(bob);
         vm.deal(bob, 10 ether);
         vault.mint{value: 10 ether}(strike1);
         uint48 stake2 = vault.yStake(strike1, 5 ether, bob);
+        uint48 hodlStake2 = vault.hodlStake(strike1, 10 ether - 1, bob);
         vm.stopPrank();
 
-        assertClose(vault.hodlMulti().balanceOf(alice, strike1), 15 ether, 10);
+        assertEq(vault.hodlMulti().balanceOf(alice, strike1), 0);
+        assertEq(vault.hodlMulti().balanceOf(bob, strike1), 0);
+
         assertClose(vault.yMulti().balanceOf(alice, strike1), 10 ether, 10);
+        assertClose(vault.yMulti().balanceOf(bob, strike1), 5 ether, 10);
 
         simulateYield(1 ether);
 
@@ -1226,7 +1231,7 @@ contract VaultTest is BaseTest {
 
         // Trigger checkpoint to save `cumulativeYieldAcc`
         vm.startPrank(bob);
-        uint48 stake3 = vault.yStake(strike1, 1 wei, bob);
+        vault.yStake(strike1, 1 wei, bob);
         vm.stopPrank();
 
         assertEq(vault.claimable(stake1), 0.5 ether - 1);
@@ -1243,19 +1248,47 @@ contract VaultTest is BaseTest {
         assertEq(vault.totalCumulativeYield(), 0);
         assertEq(vault.yieldPerToken(), 0);
 
-        // Unstaking locked in claimable
+        // Unstaking locked in the owed yield, so stake1 is not affected by negative yield
         assertEq(vault.claimable(stake1), 0.5 ether - 1);
 
         // Still staked, so hit by negative rebase
         assertEq(vault.claimable(stake2), 0);
 
+        assertEq(vault.source().balance(), 23 ether - 3);
+
         // Alice claims, check accounting
         vm.startPrank(alice);
-        vault.claim(stake1);
+        uint256 actual = vault.claim(stake1);
         ( , , , uint256 claimed, ) = vault.yStakes(stake1);
-        assertEq(claimed, 0.5 ether - 1);
+        assertEq(claimed, 0.5 ether);
         assertEq(vault.claimed(), 0.5 ether - 1);
         vm.stopPrank();
+
+        // Verify that claim was scaled down properly
+        assertClose(vault.source().balance(),
+                    23 ether - (0.5 ether * 23 / 25),
+                    10);
+        assertEq(actual, 0.5 ether * 23 / 25 - 1);
+
+        // Verify that hodl stakes were scaled down properly
+        oracle.setPrice(strike1 + 1, 0);
+
+        vm.startPrank(alice);
+        assertEq(vault.redeem(hodlStake1, 0, 0),
+                 // 15 ETH was staked, scaled down by the negative rebase
+                 // of 2 ETH, and the claim of `actual` ETH
+                 15 ether * (23 ether - actual) / 25 ether - 1);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        assertEq(vault.redeem(hodlStake2, 0, 0),
+                 // 10 ETH was staked, scaled down by the negative rebase
+                 // of 2 ETH, and the claim of `actual` ETH
+                 10 ether * (23 ether - actual) / 25 ether + 1);
+        vm.stopPrank();
+
+        // 1 wei dust left in source
+        assertEq(vault.source().balance(), 1);
     }
 
     function testStakeAfterStrikeHits() public {

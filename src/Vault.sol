@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -349,6 +347,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
         actual = _min(actual, source.balance());
         source.withdraw(actual, user);
+
         return actual;
     }
 
@@ -369,8 +368,13 @@ contract Vault is ReentrancyGuard, Ownable {
     // redeem converts a stake into the underlying tokens if the price has
     // touched the strike. The redemption can happen even if the price later
     // dips below.
-    function redeem(uint48 stakeId, uint80 roundId, uint256 amount) external nonReentrant {
+    function redeem(uint48 stakeId, uint80 roundId, uint256 amount)
+        external nonReentrant returns (uint256) {
+
         HodlStake storage stk = hodlStakes[stakeId];
+        if (amount == 0) {
+            amount = stk.amount;
+        }
 
         require(stk.user == msg.sender, "redeem user");
         require(stk.amount >= amount, "redeem amount");
@@ -386,6 +390,8 @@ contract Vault is ReentrancyGuard, Ownable {
         deposits -= amount;
 
         emit Redeem(msg.sender, infos[stk.epochId].strike, stakeId, actual);
+
+        return actual;
     }
 
     // redeemTokens redeems unstaked tokens if the price is currently above the
@@ -393,7 +399,6 @@ contract Vault is ReentrancyGuard, Ownable {
     // later dips below.
     function redeemTokens(uint64 strike, uint256 amount) external nonReentrant {
         require(oracle.price(0) >= strike, "below strike");
-        console.log("bal", hodlMulti.balanceOf(msg.sender, strike));
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
@@ -520,7 +525,7 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     // claim transfers to the user his claimable yield.
-    function claim(uint48 stakeId) external nonReentrant {
+    function claim(uint48 stakeId) public nonReentrant returns (uint256) {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y claim user");
 
@@ -530,6 +535,8 @@ contract Vault is ReentrancyGuard, Ownable {
         claimed += c;
 
         emit Claim(msg.sender, infos[stk.epochId].strike, stakeId, amount);
+
+        return amount;
     }
 
     // hodlStake takes some hodl tokens, and stakes them. This make them
@@ -584,13 +591,22 @@ contract Vault is ReentrancyGuard, Ownable {
         require(epochId < nextId, "invalid epoch");
 
         uint256 ypt;
+        uint256 acc;
 
         if (infos[epochId].closed) {
             // Passed epoch
-            ypt = terminalYieldPerToken[epochId] - infos[epochId].yieldPerTokenAcc;
+            ypt = terminalYieldPerToken[epochId];
+            acc = infos[epochId].yieldPerTokenAcc;
         } else {
             // Active epoch
-            ypt = yieldPerToken() - infos[epochId].yieldPerTokenAcc;
+            ypt = yieldPerToken();
+            acc = infos[epochId].yieldPerTokenAcc;
+        }
+
+        if (ypt < acc) {
+            ypt = 0;
+        } else {
+            ypt -= acc;
         }
 
         return (infos[epochId].cumulativeYieldAcc +
