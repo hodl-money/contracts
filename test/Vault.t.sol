@@ -1204,17 +1204,16 @@ contract VaultTest is BaseTest {
     function testAccountingNegativeYield() public {
         initVault();
 
-        // Alice mints tokens: 1ETH @ strike1
         vm.startPrank(alice);
         vm.deal(alice, 15 ether);
         vault.mint{value: 15 ether}(strike1);
-        vault.yStake(strike1, 5 ether, alice);
+        uint48 stake1 = vault.yStake(strike1, 5 ether, alice);
         vm.stopPrank();
 
         vm.startPrank(bob);
         vm.deal(bob, 10 ether);
         vault.mint{value: 10 ether}(strike1);
-        vault.yStake(strike1, 5 ether, bob);
+        uint48 stake2 = vault.yStake(strike1, 5 ether, bob);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 15 ether, 10);
@@ -1227,7 +1226,15 @@ contract VaultTest is BaseTest {
 
         // Trigger checkpoint to save `cumulativeYieldAcc`
         vm.startPrank(bob);
-        vault.yStake(strike1, 1 wei, bob);
+        uint48 stake3 = vault.yStake(strike1, 1 wei, bob);
+        vm.stopPrank();
+
+        assertEq(vault.claimable(stake1), 0.5 ether - 1);
+        assertEq(vault.claimable(stake2), 0.5 ether - 1);
+
+        // Alice unstakes to lock in her claimable value
+        vm.startPrank(alice);
+        vault.yUnstake(stake1, alice);
         vm.stopPrank();
 
         // Negative rebase happened, e.g. massive slashing of Lido nodes
@@ -1235,6 +1242,20 @@ contract VaultTest is BaseTest {
 
         assertEq(vault.totalCumulativeYield(), 0);
         assertEq(vault.yieldPerToken(), 0);
+
+        // Unstaking locked in claimable
+        assertEq(vault.claimable(stake1), 0.5 ether - 1);
+
+        // Still staked, so hit by negative rebase
+        assertEq(vault.claimable(stake2), 0);
+
+        // Alice claims, check accounting
+        vm.startPrank(alice);
+        vault.claim(stake1);
+        ( , , , uint256 claimed, ) = vault.yStakes(stake1);
+        assertEq(claimed, 0.5 ether - 1);
+        assertEq(vault.claimed(), 0.5 ether - 1);
+        vm.stopPrank();
     }
 
     function testStakeAfterStrikeHits() public {

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import "forge-std/console.sol";
+
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -391,6 +393,7 @@ contract Vault is ReentrancyGuard, Ownable {
     // later dips below.
     function redeemTokens(uint64 strike, uint256 amount) external nonReentrant {
         require(oracle.price(0) >= strike, "below strike");
+        console.log("bal", hodlMulti.balanceOf(msg.sender, strike));
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
@@ -521,9 +524,10 @@ contract Vault is ReentrancyGuard, Ownable {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y claim user");
 
-        uint256 amount = _withdraw(claimable(stakeId), msg.sender);
-        stk.claimed += amount;
-        claimed += amount;
+        uint256 c = claimable(stakeId);
+        uint256 amount = _withdraw(c, msg.sender);
+        stk.claimed += c;
+        claimed += c;
 
         emit Claim(msg.sender, infos[stk.epochId].strike, stakeId, amount);
     }
