@@ -151,7 +151,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 yieldPerTokenAcc;
         uint256 cumulativeYieldAcc;
     }
-    mapping (uint48 epochId => EpochInfo) infos;
+    mapping (uint48 epochId => EpochInfo) public infos;
 
     // Map strike to active epoch ID
     mapping (uint64 strike => uint48 epochId) public epochs;
