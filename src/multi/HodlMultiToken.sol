@@ -52,6 +52,10 @@ contract HodlMultiToken is ERC1155, Ownable {
                               uint256 strike,
                               uint256 amount,
                               bytes memory) public override {
+
+        require(to != from, "hodl self transfer");
+        require(amount > 0, "hodl zero value transfer");
+
         if (to == address(0)) {
             revert ERC1155InvalidReceiver(address(0));
         }
