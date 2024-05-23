@@ -11,8 +11,10 @@ import { Router } from  "../src/Router.sol";
 
 import { BaseScript } from "./BaseScript.sol";
 import { FakeOracle } from  "../test/helpers/FakeOracle.sol";
+import { IOracle } from "../src/interfaces/IOracle.sol";
 import { IStEth } from "../src/interfaces/IStEth.sol";
 import { StETHYieldSource } from "../src/sources/StETHYieldSource.sol";
+import { ChainlinkOracle } from  "../src/oracle/ChainlinkOracle.sol";
 
 // Uniswap interfaces
 import { IUniswapV3Pool } from "../src/interfaces/uniswap/IUniswapV3Pool.sol";
@@ -46,7 +48,17 @@ contract DeployScript is BaseScript {
 
         vm.startBroadcast(pk);
 
-        FakeOracle oracle = new FakeOracle();
+        IOracle oracle;
+
+        bool realDeploy = true;
+
+        if (realDeploy) {
+            oracle = new ChainlinkOracle(ethPriceFeed);
+        } else {
+            FakeOracle fakeOracle = new FakeOracle();
+            fakeOracle.setPrice(1999_00000000, 0);
+            oracle = IOracle(oracle);
+        }
 
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(source),
@@ -64,15 +76,11 @@ contract DeployScript is BaseScript {
                                    mainnet_aavePool);
 
         source.transferOwnership(address(vault));
-        oracle.setPrice(1999_00000000, 0);
 
-        if (true) {
+        if (realDeploy) {
             uint256 amount = 0.1 ether;
-            deployLiquidity(strike1, 73044756656988589698425290750, 85935007831751276823975034880, amount);
-            /* deployUniswap(strike1, 73044756656988589698425290750, 85935007831751276823975034880); */
-        }
-
-        if (false) {
+            deployLiquidity(3800_00000000, 73044756656988589698425290750, 85935007831751276823975034880, amount);
+        } else {
             uint256 amount = 100 ether;
             deployLiquidity(strike1, 73044756656988589698425290750, 85935007831751276823975034880, amount);
             deployLiquidity(strike2, 68613601432514894825936388100, 91484801910019859767915184130, amount);
