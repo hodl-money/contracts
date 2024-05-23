@@ -24,10 +24,8 @@ contract StETHYieldSource is IYieldSource, Ownable {
     }
 
     function deposit() external onlyOwner payable returns (uint256) {
-        uint256 before = IERC20(asset).balanceOf(address(this));
         IStEth(asset).submit{value: msg.value}(address(0));
-        uint256 delta = IERC20(asset).balanceOf(address(this)) - before;
-        return delta;
+        return msg.value;
     }
 
     function withdraw(uint256 amount, address receiver) external onlyOwner {

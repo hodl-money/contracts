@@ -74,7 +74,7 @@ contract HodlTokenTest is BaseTest {
 
         // Alice transfers her strike1 tokens to Chad
         vm.startPrank(alice);
-        hodlTokenStrike1.transfer(chad, 1 ether - 1);
+        hodlTokenStrike1.transfer(chad, 1 ether);
         vm.stopPrank();
 
         assertEq(vault.hodlMulti().balanceOf(alice, strike1), 0);
@@ -94,24 +94,24 @@ contract HodlTokenTest is BaseTest {
         // Chad attempts to transfer strike 2 tokens from Alice
         vm.startPrank(chad);
         vm.expectRevert("not authorized");
-        hodlTokenStrike2.transferFrom(alice, chad, 2 ether - 2);
+        hodlTokenStrike2.transferFrom(alice, chad, 2 ether);
 
         // Alice approves chad to transfer strike 2 tokens
         assertEq(hodlTokenStrike2.allowance(alice, chad), 0);
         vm.startPrank(alice);
-        hodlTokenStrike2.approve(chad, 2 ether - 1);
+        hodlTokenStrike2.approve(chad, 2 ether);
         assertClose(hodlTokenStrike2.allowance(alice, chad), 2 ether, 10);
         vm.stopPrank();
 
         // Chad transferFroms strike 2 tokens from Alice
         vm.startPrank(chad);
-        hodlTokenStrike2.transferFrom(alice, chad, 2 ether - 1);
+        hodlTokenStrike2.transferFrom(alice, chad, 2 ether);
 
         assertEq(hodlTokenStrike2.allowance(alice, chad), 0);
 
         // Chad can't transferFrom again
         vm.expectRevert("not authorized");
-        hodlTokenStrike2.transferFrom(alice, chad, 2 ether - 2);
+        hodlTokenStrike2.transferFrom(alice, chad, 2 ether);
 
         vm.stopPrank();
 

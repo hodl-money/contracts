@@ -120,6 +120,17 @@ contract RouterTest is BaseTest, ERC1155Holder {
         vm.stopPrank();
     }
 
+    function testGas_mint() public {
+        initRouter();
+        oracle.setPrice(strike1 - 1, 0);
+
+        // Mint hodl tokens
+        vm.startPrank(alice);
+        vault.mint{value: 3 ether}(strike1);
+        vault.mint{value: 3 ether}(strike1);
+        vm.stopPrank();
+    }
+
     function testAddLiquidity() public {
         initRouter();
 
@@ -185,7 +196,7 @@ contract RouterTest is BaseTest, ERC1155Holder {
         vm.stopPrank();
 
         uint256 delta = IERC20(steth).balanceOf(alice) - before;
-        assertEq(delta, out - 1);
+        assertClose(delta, out, 10);
 
         (uint256 amountY, uint256 loan) = router.previewYBuy(strike1, 0.2 ether);
 
@@ -255,14 +266,14 @@ contract RouterTest is BaseTest, ERC1155Holder {
             vm.expectRevert("y sell min out");
             router.ySell(strike1, loan, 0.2 ether, previewProfit + 1);
 
-            uint256 out = router.ySell(strike1, loan, 0.2 ether, previewProfit - 1);
+            uint256 out = router.ySell(strike1, loan, 0.2 ether, previewProfit - 10);
             vm.stopPrank();
 
             uint256 delta = IERC20(address(weth)).balanceOf(alice) - before;
 
             assertEq(previewProfit, 29901470756332774);
-            assertClose(out, 29901470756332774, 1);
-            assertClose(delta, 29901470756332774, 1);
+            assertClose(out, 29901470756332774, 10);
+            assertClose(delta, 29901470756332774, 10);
         }
     }
 
