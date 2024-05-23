@@ -126,6 +126,9 @@ contract Router is ReentrancyGuard, Ownable {
     }
 
     function setWstethWethPoolFee(uint24 wstethWethPoolFee_) external onlyOwner {
+        require(uniswapV3Factory(address(wsteth), address(weth)) != address(0),
+                "no uniswap pool");
+
         wstethWethPoolFee = wstethWethPoolFee_;
 
         emit SetWstethWethPoolFee(wstethWethPoolFee);
