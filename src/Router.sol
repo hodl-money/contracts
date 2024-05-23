@@ -37,6 +37,7 @@ contract Router is ReentrancyGuard, Ownable, Pausable {
 
     uint24 public hodlPoolFee = 3000;
     uint24 public wstethWethPoolFee = 100;
+    uint16 public aaveReferralCode;
 
     Vault public immutable vault;
     IWrappedETH public immutable weth;
@@ -83,6 +84,7 @@ contract Router is ReentrancyGuard, Ownable, Pausable {
 
     event SetHodlPoolFee(uint24 fee);
     event SetWstethWethPoolFee(uint24 fee);
+    event SetAaveReferralCode(uint16 fee);
 
     constructor(address vault_,
                 address weth_,
@@ -135,6 +137,12 @@ contract Router is ReentrancyGuard, Ownable, Pausable {
         return uniswapV3Factory.getPool(token0, token1, hodlPoolFee);
     }
 
+    function setHodlPoolFee(uint24 hodlPoolFee_) external onlyOwner {
+        hodlPoolFee = hodlPoolFee_;
+
+        emit SetHodlPoolFee(hodlPoolFee);
+    }
+
     function setWstethWethPoolFee(uint24 wstethWethPoolFee_) external onlyOwner {
         require(uniswapV3Factory.getPool(address(wsteth),
                                          address(weth),
@@ -146,10 +154,10 @@ contract Router is ReentrancyGuard, Ownable, Pausable {
         emit SetWstethWethPoolFee(wstethWethPoolFee);
     }
 
-    function setHodlPoolFee(uint24 hodlPoolFee_) external onlyOwner {
-        hodlPoolFee = hodlPoolFee_;
+    function setAaveReferralCode(uint16 aaveReferralCode_) external onlyOwner {
+        aaveReferralCode = aaveReferralCode_;
 
-        emit SetHodlPoolFee(hodlPoolFee);
+        emit SetAaveReferralCode(aaveReferralCode);
     }
 
     // Add liquidity respecting the fact that 1 hodl token should never trade
@@ -377,7 +385,7 @@ contract Router is ReentrancyGuard, Ownable, Pausable {
         bytes memory data = abi.encode(LOAN_Y_BUY, msg.sender, strike, value + loan, minOut);
 
         uint256 before = vault.yMulti().balanceOf(address(this), strike);
-        aavePool.flashLoanSimple(address(this), address(weth), loan, data, 0);
+        aavePool.flashLoanSimple(address(this), address(weth), loan, data, aaveReferralCode);
         uint256 delta = vault.yMulti().balanceOf(address(this), strike) - before;
         require(delta >= minOut, "y min out");
 
