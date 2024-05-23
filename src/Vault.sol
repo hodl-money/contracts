@@ -367,7 +367,9 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
     }
 
     // merge combines equal parts y + hodl tokens into the underlying asset.
-    function merge(uint64 strike, uint256 amount) external nonReentrant {
+    function merge(uint64 strike, uint256 amount)
+        external nonReentrant returns (uint256) {
+
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "merge hodl balance");
         require(yMulti.balanceOf(msg.sender, strike) >= amount, "merge y balance");
 
@@ -378,6 +380,8 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
         deposits -= amount;
 
         emit Merge(msg.sender, strike, actual);
+
+        return actual;
     }
 
     // redeem converts a stake into the underlying tokens if the price has
@@ -412,7 +416,9 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
     // redeemTokens redeems unstaked tokens if the price is currently above the
     // strike. Unlike redeemStake, the redemption cannot happen if the price
     // later dips below.
-    function redeemTokens(uint64 strike, uint256 amount) external nonReentrant {
+    function redeemTokens(uint64 strike, uint256 amount)
+        external nonReentrant returns (uint256) {
+
         require(oracle.price(0) >= strike, "below strike");
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
 
@@ -425,6 +431,8 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
         deposits -= amount;
 
         emit RedeemTokens(msg.sender, strike, actual);
+
+        return actual;
     }
 
     function _closeOutEpoch(uint48 epochId) private {
