@@ -27,7 +27,7 @@ import { IPool } from "../src/interfaces/aave/IPool.sol";
 //  - Buying/selling hodl tokens
 //  - Buying/selling y tokens
 //
-contract Router is ReentrancyGuard, Ownable {
+contract Router is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
 
     uint8 public constant LOAN_Y_BUY = 1;
@@ -94,7 +94,8 @@ contract Router is ReentrancyGuard, Ownable {
                 address quoterV2_,
                 address aavePool_)
         ReentrancyGuard()
-        Ownable(msg.sender) {
+        Ownable(msg.sender)
+        Pausable() {
 
         require(vault_ != address(0));
         require(weth_ != address(0));
@@ -115,6 +116,14 @@ contract Router is ReentrancyGuard, Ownable {
         manager = INonfungiblePositionManager(manager_);
         quoterV2 = IQuoterV2(quoterV2_);
         aavePool = IPool(aavePool_);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function pool(uint64 strike) public view returns (address) {
@@ -149,7 +158,7 @@ contract Router is ReentrancyGuard, Ownable {
                           uint256 mintAmount,
                           uint256 amountHodlMin,
                           uint256 amountWethMin,
-                          uint24 tick) external nonReentrant payable {
+                          uint24 tick) external nonReentrant whenNotPaused payable {
 
         IERC20 hodlToken = vault.deployments(strike);
         require(address(hodlToken) != address(0), "no deployed ERC20");
@@ -219,7 +228,9 @@ contract Router is ReentrancyGuard, Ownable {
         return amountOut;
     }
 
-    function hodlBuy(uint64 strike, uint256 minOut, bool shouldStake) external nonReentrant payable returns (uint256, uint48) {
+    function hodlBuy(uint64 strike, uint256 minOut, bool shouldStake)
+        external nonReentrant whenNotPaused payable returns (uint256, uint48) {
+
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -274,7 +285,9 @@ contract Router is ReentrancyGuard, Ownable {
         return out;
     }
 
-    function hodlSell(uint64 strike, uint256 amount, uint256 minOut) external nonReentrant payable returns (uint256) {
+    function hodlSell(uint64 strike, uint256 amount, uint256 minOut)
+        external whenNotPaused nonReentrant payable returns (uint256) {
+
         IERC20 token = vault.deployments(strike);
         require(address(token) != address(0), "no deployed ERC20");
         address uniPool = pool(strike);
@@ -357,9 +370,8 @@ contract Router is ReentrancyGuard, Ownable {
         return (out, loan);
     }
 
-    function yBuy(uint64 strike,
-                  uint256 loan,
-                  uint256 minOut) external nonReentrant payable returns (uint256) {
+    function yBuy(uint64 strike, uint256 loan, uint256 minOut)
+        external nonReentrant whenNotPaused payable returns (uint256) {
 
         uint256 value = msg.value;
         bytes memory data = abi.encode(LOAN_Y_BUY, msg.sender, strike, value + loan, minOut);
@@ -462,10 +474,8 @@ contract Router is ReentrancyGuard, Ownable {
         return (loan, profit);
     }
 
-    function ySell(uint64 strike,
-                   uint256 loan,
-                   uint256 amount,
-                   uint256 minOut) external nonReentrant returns (uint256) {
+    function ySell(uint64 strike, uint256 loan, uint256 amount, uint256 minOut)
+        external nonReentrant whenNotPaused returns (uint256) {
 
         // The y token sale has these steps:
         //
@@ -558,7 +568,8 @@ contract Router is ReentrancyGuard, Ownable {
                               uint256 loan,
                               uint256 fee,
                               address initiator,
-                              bytes calldata params) external payable returns (bool) {
+                              bytes calldata params)
+        external whenNotPaused payable returns (bool) {
 
         require(msg.sender == address(aavePool), "only aave");
         require(initiator == address(this), "only from router");

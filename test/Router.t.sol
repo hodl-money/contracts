@@ -277,6 +277,32 @@ contract RouterTest is BaseTest, ERC1155Holder {
         }
     }
 
+    function testPause() public {
+        initRouter();
+
+        vm.deal(alice, 1 ether);
+        vm.startPrank(alice);
+        router.hodlBuy{value: 0.2 ether}(strike1, 0, true);
+        vm.expectRevert();
+        vault.pause();
+        vm.stopPrank();
+
+        router.pause();
+
+        vm.startPrank(alice);
+        vm.expectRevert();
+        router.hodlBuy{value: 0.2 ether}(strike1, 0, true);
+        vm.expectRevert();
+        vault.unpause();
+        vm.stopPrank();
+
+        router.unpause();
+
+        vm.startPrank(alice);
+        router.hodlBuy{value: 0.2 ether}(strike1, 0, true);
+        vm.stopPrank();
+    }
+
     // https://github.com/code-423n4/2024-05-hodl-findings/issues/30
     function testYBuysSellsDos() public {
         initRouter();

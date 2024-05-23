@@ -1334,6 +1334,30 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
     }
 
+    function testPause() public {
+        initVault();
+
+        vm.startPrank(alice);
+        vault.mint{value: 3 ether}(strike1);
+        vm.expectRevert();
+        vault.pause();
+        vm.stopPrank();
+
+        vault.pause();
+
+        vm.startPrank(alice);
+        vm.expectRevert();
+        vault.mint{value: 3 ether}(strike1);
+        vm.expectRevert();
+        vault.unpause();
+        vm.stopPrank();
+
+        vault.unpause();
+
+        vm.startPrank(alice);
+        vault.mint{value: 3 ether}(strike1);
+        vm.stopPrank();
+    }
 
     function simulateYield(uint256 amount) internal {
         IStEth(steth).submit{value: amount}(address(0));

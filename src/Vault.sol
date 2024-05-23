@@ -5,6 +5,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Ownable } from  "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from  "@openzeppelin/contracts/utils/Pausable.sol";
 
 import { IOracle } from "./interfaces/IOracle.sol";
 import { IYieldSource } from "./interfaces/IYieldSource.sol";
@@ -83,7 +84,7 @@ import { HodlToken } from  "./single/HodlToken.sol";
 // * Naming
 // In code, 'hodl' tokens refer to plETH, and 'y' tokens refer to ybETH.
 //
-contract Vault is ReentrancyGuard, Ownable {
+contract Vault is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION_FACTOR = 1 ether;
@@ -208,7 +209,11 @@ contract Vault is ReentrancyGuard, Ownable {
 
     constructor(address source_,
                 address oracle_,
-                address treasury_) ReentrancyGuard() Ownable(msg.sender) {
+                address treasury_)
+        ReentrancyGuard()
+        Ownable(msg.sender)
+        Pausable() {
+
         require(source_ != address(0));
         require(oracle_ != address(0));
         require(treasury_ != address(0));
@@ -219,6 +224,14 @@ contract Vault is ReentrancyGuard, Ownable {
 
         hodlMulti = new HodlMultiToken("");
         yMulti = new YMultiToken("", address(this));
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function setTreasury(address treasury_) external nonReentrant onlyOwner {
@@ -280,7 +293,9 @@ contract Vault is ReentrancyGuard, Ownable {
         epochs[strike] = nextId++;
     }
 
-    function mint(uint64 strike) external nonReentrant payable returns (uint256) {
+    function mint(uint64 strike)
+        external nonReentrant whenNotPaused payable returns (uint256) {
+
         require(oracle.price(0) < strike, "strike too low");
 
         uint256 value = msg.value;
@@ -443,7 +458,9 @@ contract Vault is ReentrancyGuard, Ownable {
     // yStake takes y tokens and stakes them, which makes those tokens receive
     // yield. Only staked y tokens receive yield. This is to enable proper yield
     // accounting in relation to hodl token redemptions.
-    function yStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint48) {
+    function yStake(uint64 strike, uint256 amount, address user)
+        external nonReentrant whenNotPaused returns (uint48) {
+
         require(yMulti.balanceOf(msg.sender, strike) >= amount, "y stake balance");
         uint48 epochId = epochs[strike];
 
@@ -541,7 +558,9 @@ contract Vault is ReentrancyGuard, Ownable {
 
     // hodlStake takes some hodl tokens, and stakes them. This make them
     // eligible for redemption when the strike price hits.
-    function hodlStake(uint64 strike, uint256 amount, address user) external nonReentrant returns (uint48) {
+    function hodlStake(uint64 strike, uint256 amount, address user)
+        external nonReentrant whenNotPaused returns (uint48) {
+
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "hodl stake balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
