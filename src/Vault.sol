@@ -380,7 +380,7 @@ contract Vault is ReentrancyGuard, Ownable {
         require(stk.amount >= amount, "redeem amount");
         require(canRedeem(stakeId, roundId), "cannot redeem");
 
-        // Burn the specified hodl stake
+        // Deduct the specified hodl stake
         stk.amount -= amount;
 
         // Close out before updating `deposits`
