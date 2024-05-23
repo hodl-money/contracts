@@ -169,7 +169,7 @@ contract Router is ReentrancyGuard, Ownable {
                 amount0Min: amountHodlMin,
                 amount1Min: amountWethMin,
                 recipient: msg.sender,
-                deadline: block.timestamp + 1 });
+                deadline: block.timestamp });
         } else {
             params = INonfungiblePositionManager.MintParams({
                 token0: address(weth),
@@ -182,7 +182,7 @@ contract Router is ReentrancyGuard, Ownable {
                 amount0Min: amountWethMin,
                 amount1Min: amountHodlMin,
                 recipient: msg.sender,
-                deadline: block.timestamp + 1 });
+                deadline: block.timestamp });
         }
 
         IERC20(params.token0).forceApprove(address(manager), params.amount0Desired);
@@ -231,7 +231,7 @@ contract Router is ReentrancyGuard, Ownable {
                 tokenOut: address(token),
                 fee: hodlPoolFee,
                 recipient: receiver,
-                deadline: block.timestamp + 1,
+                deadline: block.timestamp,
                 amountIn: msg.value,
                 amountOutMinimum: minOut,
                 sqrtPriceLimitX96: 0 });
@@ -283,7 +283,7 @@ contract Router is ReentrancyGuard, Ownable {
                 tokenOut: address(weth),
                 fee: hodlPoolFee,
                 recipient: msg.sender,
-                deadline: block.timestamp + 1,
+                deadline: block.timestamp,
                 amountIn: amount,
                 amountOutMinimum: minOut,
                 sqrtPriceLimitX96: 0 });
@@ -396,7 +396,7 @@ contract Router is ReentrancyGuard, Ownable {
                 tokenOut: address(weth),
                 fee: hodlPoolFee,
                 recipient: address(this),
-                deadline: block.timestamp + 1,
+                deadline: block.timestamp,
                 amountIn: amount,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0 });
@@ -502,7 +502,7 @@ contract Router is ReentrancyGuard, Ownable {
                 tokenOut: address(token),
                 fee: hodlPoolFee,
                 recipient: address(this),
-                deadline: block.timestamp + 1,
+                deadline: block.timestamp,
                 amountOut: amount,
                 amountInMaximum: loan,
                 sqrtPriceLimitX96: 0 });
@@ -526,7 +526,7 @@ contract Router is ReentrancyGuard, Ownable {
                 tokenOut: address(weth),
                 fee: wstethWethPoolFee,
                 recipient: address(this),
-                deadline: block.timestamp + 1,
+                deadline: block.timestamp,
                 amountIn: bal,
                 amountOutMinimum: 0, // Zero since `profit >= minOut` is checked in `ySell`
                 sqrtPriceLimitX96: 0 });
