@@ -297,6 +297,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
         external nonReentrant whenNotPaused payable returns (uint256) {
 
         require(oracle.price(0) < strike, "strike too low");
+        require(msg.value > 0, "zero mint");
 
         uint256 value = msg.value;
         uint256 feeValue = value * fee / FEE_BASIS;
@@ -419,6 +420,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
     function redeemTokens(uint64 strike, uint256 amount)
         external nonReentrant returns (uint256) {
 
+        require(amount > 0, "zero redeem tokens");
         require(oracle.price(0) >= strike, "below strike");
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "redeem tokens balance");
 
@@ -569,6 +571,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
     function hodlStake(uint64 strike, uint256 amount, address user)
         external nonReentrant whenNotPaused returns (uint48) {
 
+        require(amount > 0, "zero hodl stake");
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount, "hodl stake balance");
 
         hodlMulti.burn(msg.sender, strike, amount);
@@ -588,6 +591,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
     // user.
     function hodlUnstake(uint48 stakeId, uint256 amount, address user) external nonReentrant {
         HodlStake storage stk = hodlStakes[stakeId];
+        require(amount > 0, "zero hodl unstake");
         require(stk.user == msg.sender, "hodl unstake user");
         require(stk.amount >= amount, "hodl unstake amount");
 
