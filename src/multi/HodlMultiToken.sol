@@ -28,11 +28,15 @@ contract HodlMultiToken is ERC1155, Ownable {
     constructor(string memory uri_) ERC1155(uri_) Ownable(msg.sender) { }
 
     function name(uint256 strike) public view virtual returns (string memory) {
-        return string(abi.encodePacked("plETH @ ", Strings.toString(strike / 1e8)));
+        if (strike % 1e8 == 0) {
+            return string(abi.encodePacked("plETH @ ", Strings.toString(strike / 1e8)));
+        } else {
+            return string(abi.encodePacked("plETH @ ", Strings.toString(strike)));
+        }
     }
 
     function symbol(uint256 strike) public view virtual returns (string memory) {
-        return string(abi.encodePacked("plETH @ ", Strings.toString(strike / 1e8)));
+        return name(strike);
     }
 
     // authorize enables another contract to transfer tokens between accounts.

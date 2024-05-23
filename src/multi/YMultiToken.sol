@@ -40,11 +40,15 @@ contract YMultiToken is ERC1155, Ownable {
     }
 
     function name(uint256 strike) public view virtual returns (string memory) {
-        return string(abi.encodePacked("ybETH @ ", Strings.toString(strike / 1e8)));
+        if (strike % 1e8 == 0) {
+            return string(abi.encodePacked("ybETH @ ", Strings.toString(strike / 1e8)));
+        } else {
+            return string(abi.encodePacked("ybETH @ ", Strings.toString(strike)));
+        }
     }
 
     function symbol(uint256 strike) public view virtual returns (string memory) {
-        return string(abi.encodePacked("ybETH @ ", Strings.toString(strike / 1e8)));
+        return name(strike);
     }
 
     function mint(address user, uint256 strike, uint256 amount) public onlyOwner {
