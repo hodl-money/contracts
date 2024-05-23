@@ -47,19 +47,11 @@ contract DeployScript is BaseScript {
         vm.startBroadcast(pk);
 
         FakeOracle oracle = new FakeOracle();
-        oracle.setPrice(1999_00000000, 0);
 
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(source),
                           address(oracle),
                           deployerAddress);
-        source.transferOwnership(address(vault));
-
-        if (true) {
-            deployUniswap(strike1, 73044756656988589698425290750, 85935007831751276823975034880);
-            deployUniswap(strike2, 68613601432514894825936388100, 91484801910019859767915184130);
-            deployUniswap(strike3, 63875786711408440335392571390, 98270441094474503294235443200);
-        }
 
         Router router = new Router(address(vault),
                                    address(weth),
@@ -70,6 +62,22 @@ contract DeployScript is BaseScript {
                                    mainnet_NonfungiblePositionManager,
                                    mainnet_QuoterV2,
                                    mainnet_aavePool);
+
+        source.transferOwnership(address(vault));
+        oracle.setPrice(1999_00000000, 0);
+
+        if (true) {
+            uint256 amount = 0.1 ether;
+            deployLiquidity(strike1, 73044756656988589698425290750, 85935007831751276823975034880, amount);
+            /* deployUniswap(strike1, 73044756656988589698425290750, 85935007831751276823975034880); */
+        }
+
+        if (false) {
+            uint256 amount = 100 ether;
+            deployLiquidity(strike1, 73044756656988589698425290750, 85935007831751276823975034880, amount);
+            deployLiquidity(strike2, 68613601432514894825936388100, 91484801910019859767915184130, amount);
+            deployLiquidity(strike3, 63875786711408440335392571390, 98270441094474503294235443200, amount);
+        }
 
         vm.stopBroadcast();
 
@@ -97,7 +105,6 @@ contract DeployScript is BaseScript {
 
     function deployUniswap(uint64 strike, uint160 initPrice, uint160 initPriceInv) public {
         address hodl1 = vault.deployERC20(strike);
-
         (address token0, address token1) = hodl1 < weth
             ? (hodl1, weth)
             : (weth, hodl1);
@@ -113,9 +120,18 @@ contract DeployScript is BaseScript {
 
             IUniswapV3Pool(uniswapV3Pool).initialize(initPrice);
         }
+    }
 
-        // Get some tokens
-        uint256 amount = 100 ether;
+    function deployLiquidity(uint64 strike,
+                             uint160 initPrice,
+                             uint160 initPriceInv,
+                             uint256 amount) public {
+        deployUniswap(strike, initPrice, initPriceInv);
+
+        address hodl1 = address(vault.deployments(strike));
+        (address token0, address token1) = hodl1 < weth
+            ? (hodl1, weth)
+            : (weth, hodl1);
 
         IWrappedETH(address(weth)).deposit{value: amount}();
         vault.mint{value: amount + 100}(strike);  // Add 100 for stETH off-by-one
