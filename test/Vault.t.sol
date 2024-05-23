@@ -139,8 +139,6 @@ contract VaultTest is BaseTest {
         vm.expectRevert("y claim user");
         vault.claim(stake4);
 
-        return;
-
         claimAndVerify(stake4, alice, 0.01 ether, true);
         claimAndVerify(stake5, bob, 0.04 ether, true);
         claimAndVerify(stake6, chad, 0.08 ether, true);
@@ -180,8 +178,6 @@ contract VaultTest is BaseTest {
         assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
         assertClose(IERC20(steth).balanceOf(bob), 0, 10);
         assertClose(IERC20(steth).balanceOf(chad), 0, 10);
-
-        return;
 
         // Simulate more yield, verify only epoch2 and epoch3 get it
 

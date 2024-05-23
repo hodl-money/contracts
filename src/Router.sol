@@ -5,6 +5,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from  "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Ownable } from  "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from  "@openzeppelin/contracts/utils/Pausable.sol";
 
 import { Vault } from  "./Vault.sol";
 
@@ -126,7 +127,9 @@ contract Router is ReentrancyGuard, Ownable {
     }
 
     function setWstethWethPoolFee(uint24 wstethWethPoolFee_) external onlyOwner {
-        require(uniswapV3Factory(address(wsteth), address(weth)) != address(0),
+        require(uniswapV3Factory.getPool(address(wsteth),
+                                         address(weth),
+                                         wstethWethPoolFee_) != address(0),
                 "no uniswap pool");
 
         wstethWethPoolFee = wstethWethPoolFee_;
