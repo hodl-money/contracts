@@ -32,6 +32,7 @@ contract Router is ReentrancyGuard, Ownable {
     uint8 public constant LOAN_Y_BUY = 1;
     uint8 public constant LOAN_Y_SELL = 2;
     uint256 public constant SEARCH_TOLERANCE = 1e9;
+    uint256 public constant REFUND_DUST_LIMIT = 1e6;
 
     uint24 public hodlPoolFee = 3000;
     uint24 public wstethWethPoolFee = 100;
@@ -572,7 +573,7 @@ contract Router is ReentrancyGuard, Ownable {
 
     function _refundLeftoverWeth() internal {
         uint256 leftover = IERC20(address(weth)).balanceOf(address(this));
-        if (leftover > 0) {
+        if (leftover > REFUND_DUST_LIMIT) {
             IERC20(address(weth)).transfer(msg.sender, leftover);
         }
     }
