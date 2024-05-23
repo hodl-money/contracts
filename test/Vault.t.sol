@@ -151,7 +151,7 @@ contract VaultTest is BaseTest {
 
         vm.startPrank(alice);
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         oracle.setPrice(strike1 + 1, 0);
@@ -159,7 +159,7 @@ contract VaultTest is BaseTest {
         assertClose(IERC20(steth).balanceOf(alice), 0 ether, 10);
 
         vm.startPrank(alice);
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         // Verify cannot y unstake closed epoch
@@ -199,7 +199,7 @@ contract VaultTest is BaseTest {
         assertClose(vault.yStakedTotal(), 12 ether, 10);
 
         vm.startPrank(chad);
-        vault.redeem(stake3, 0, 4 ether);
+        vault.redeem(stake3, 0, 4 ether, 0);
         vm.stopPrank();
 
         assertEq(vault.yStaked(epoch1), 0);
@@ -386,30 +386,30 @@ contract VaultTest is BaseTest {
         oracle.setPrice(strike1 + 1, 0);
 
         // Redeem 1 of 2 staked
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
 
         // Go below strike
         oracle.setPrice(strike1 - 1, 0);
 
         // Redeem 1 remaining staked
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
 
         // Stake 1 at same strike
         uint48 stake2 = vault.hodlStake(strike1, 1 ether, alice);
 
         // The newly staked tokens cannot be redeemed
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake2, 0, 1 ether);
+        vault.redeem(stake2, 0, 1 ether, 0);
 
         // Strike hits
         oracle.setPrice(strike1 + 1, 0);
 
         // Redeem the one we staked, now that they hit the strike
-        vault.redeem(stake2, 0, 1 ether);
+        vault.redeem(stake2, 0, 1 ether, 0);
 
         // Stake and redeem last 1 at that strike
         uint48 stake3 = vault.hodlStake(strike1, 1 ether - 10, alice);
-        vault.redeem(stake3, 0, 1 ether - 10);
+        vault.redeem(stake3, 0, 1 ether - 10, 0);
 
         assertClose(IERC20(steth).balanceOf(alice), 4 ether, 100);
 
@@ -574,12 +574,12 @@ contract VaultTest is BaseTest {
 
         vm.startPrank(alice);
         vm.expectRevert("redeem amount");
-        vault.redeem(stake1, 0, 1.1 ether);
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1.1 ether, 0);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        vault.redeem(stake2, 0, 1 ether);
+        vault.redeem(stake2, 0, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(IERC20(steth).balanceOf(alice), 1 ether, 10);
@@ -594,12 +594,12 @@ contract VaultTest is BaseTest {
 
         vm.startPrank(alice);
         vm.expectRevert("redeem amount");
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         vm.startPrank(bob);
         vm.expectRevert("redeem amount");
-        vault.redeem(stake2, 0, 1 ether);
+        vault.redeem(stake2, 0, 1 ether, 0);
         vm.stopPrank();
     }
 
@@ -642,7 +642,7 @@ contract VaultTest is BaseTest {
 
         // Alice claims staked hodl
         vm.startPrank(alice);
-        vault.redeem(aliceHodlStake, 0, 1 ether - 2);
+        vault.redeem(aliceHodlStake, 0, 1 ether - 2, 0);
         vm.stopPrank();
 
         // Price moves back below strike1
@@ -658,7 +658,11 @@ contract VaultTest is BaseTest {
 
         // Bob claims stake from epoch 1, we are currently in epoch 2
         vm.startPrank(bob);
-        vault.redeem(bobHodlStake, 0, 2 ether - 2);
+
+        vm.expectRevert("redeem slippage");
+        vault.redeem(bobHodlStake, 0, 2 ether - 2, 2 ether);
+
+        vault.redeem(bobHodlStake, 0, 2 ether - 2, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(chad, strike1), 4 ether, 10);
@@ -677,7 +681,7 @@ contract VaultTest is BaseTest {
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 4 ether, 10);
 
         vm.expectRevert("below strike");
-        vault.redeemTokens(strike1, 2 ether);
+        vault.redeemTokens(strike1, 2 ether, 0);
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 4 ether, 10);
         vm.stopPrank();
@@ -687,12 +691,15 @@ contract VaultTest is BaseTest {
         uint256 before = IERC20(steth).balanceOf(alice);
 
         vm.startPrank(alice);
-        vault.redeemTokens(strike1, 2 ether);
+        vault.redeemTokens(strike1, 2 ether, 0);
 
         vm.expectRevert("redeem tokens balance");
-        vault.redeemTokens(strike1, 10 ether);
+        vault.redeemTokens(strike1, 10 ether, 0);
 
-        vault.redeemTokens(strike1, 2 ether - 2);
+        vm.expectRevert("redeem tokens slippage");
+        vault.redeemTokens(strike1, 2 ether - 2, 4 ether + 10);
+
+        vault.redeemTokens(strike1, 2 ether - 2, 0);
         vm.stopPrank();
 
         uint256 delta = IERC20(steth).balanceOf(alice) - before;
@@ -718,7 +725,7 @@ contract VaultTest is BaseTest {
         // Alice cannot redeem
         vm.startPrank(alice);
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         // Alice stakes y tokens for Degen
@@ -742,7 +749,7 @@ contract VaultTest is BaseTest {
 
         // Alice redeems
         vm.startPrank(alice);
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
@@ -757,7 +764,7 @@ contract VaultTest is BaseTest {
 
         // Bob redeems some
         vm.startPrank(bob);
-        vault.redeemTokens(strike1, 1 ether);
+        vault.redeemTokens(strike1, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 1 ether, 10);
@@ -798,7 +805,7 @@ contract VaultTest is BaseTest {
         // Bob cannot redeem now
         vm.startPrank(bob);
         vm.expectRevert("below strike");
-        vault.redeemTokens(strike1, 1 ether);
+        vault.redeemTokens(strike1, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 5 ether, 10);
@@ -814,7 +821,7 @@ contract VaultTest is BaseTest {
 
         // Alice can still redeem
         vm.startPrank(alice);
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 5 ether, 10);
@@ -834,7 +841,7 @@ contract VaultTest is BaseTest {
         vault.mint{value: 4 ether}(strike1);
         uint48 stake4 = vault.hodlStake(strike1, 2 ether, chad);
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake4, 0, 1 ether);
+        vault.redeem(stake4, 0, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 5 ether, 10);
@@ -850,7 +857,7 @@ contract VaultTest is BaseTest {
         vm.startPrank(degen);
         vault.mint{value: 4 ether}(strike1);
         vm.expectRevert("below strike");
-        vault.redeemTokens(strike1, 1 ether);
+        vault.redeemTokens(strike1, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 5 ether, 10);
@@ -869,19 +876,19 @@ contract VaultTest is BaseTest {
 
         // Redemption for all
         vm.startPrank(alice);
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        vault.redeemTokens(strike1, 1 ether);
+        vault.redeemTokens(strike1, 1 ether, 0);
         vm.stopPrank();
 
         vm.startPrank(chad);
-        vault.redeem(stake4, 0, 1 ether);
+        vault.redeem(stake4, 0, 1 ether, 0);
         vm.stopPrank();
 
         vm.startPrank(degen);
-        vault.redeemTokens(strike1, 1 ether);
+        vault.redeemTokens(strike1, 1 ether, 0);
         vm.stopPrank();
 
         assertClose(vault.hodlMulti().balanceOf(alice, strike1), 5 ether, 10);
@@ -1091,12 +1098,12 @@ contract VaultTest is BaseTest {
 
         // Alice claims staked hodl
         vm.startPrank(alice);
-        vault.redeem(aliceHodlStake, 0, 1 ether - 2);
+        vault.redeem(aliceHodlStake, 0, 1 ether - 2, 0);
         vm.stopPrank();
 
         // Bob claims staked hodl
         vm.startPrank(bob);
-        vault.redeem(bobHodlStake, 0, 1 ether - 2);
+        vault.redeem(bobHodlStake, 0, 1 ether - 2, 0);
         vm.stopPrank();
 
         assertEq(vault.yMulti().balanceOf(alice, strike1), 0);
@@ -1151,14 +1158,14 @@ contract VaultTest is BaseTest {
         // Cannot redeem at current price
         assertEq(oracle.price(0), strike1 - 1);
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
 
         // Cannot redeem via old round before epoch
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake1, 100, 1 ether);
+        vault.redeem(stake1, 100, 1 ether, 0);
 
         // Can via old round *after* epoch
-        vault.redeem(stake1, 300, 1 ether);
+        vault.redeem(stake1, 300, 1 ether, 0);
 
         vm.stopPrank();
     }
@@ -1277,7 +1284,7 @@ contract VaultTest is BaseTest {
         oracle.setPrice(strike1 + 1, 0);
 
         vm.startPrank(alice);
-        assertClose(vault.redeem(hodlStake1, 0, 0),
+        assertClose(vault.redeem(hodlStake1, 0, 0, 0),
                     // 15 ETH was staked, scaled down by the negative rebase
                     // of 2 ETH, and the claim of `actual` ETH
                     15 ether * (23 ether - actual) / 25 ether,
@@ -1285,7 +1292,7 @@ contract VaultTest is BaseTest {
         vm.stopPrank();
 
         vm.startPrank(bob);
-        assertClose(vault.redeem(hodlStake2, 0, 0),
+        assertClose(vault.redeem(hodlStake2, 0, 0, 0),
                     // 10 ETH was staked, scaled down by the negative rebase
                     // of 2 ETH, and the claim of `actual` ETH
                     10 ether * (23 ether - actual) / 25 ether,
@@ -1307,29 +1314,29 @@ contract VaultTest is BaseTest {
         uint48 stake1 = vault.hodlStake(strike1, 1 ether, alice);
 
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
 
         oracle.setPrice(strike1 + 1, 0);
 
         // Stake before a redeem
         uint48 stake2 = vault.hodlStake(strike1, 0.1 ether, alice);
 
-        vault.redeem(stake1, 0, 1 ether);
+        vault.redeem(stake1, 0, 1 ether, 0);
 
         // Stake after a redeem
         uint48 stake3 = vault.hodlStake(strike1, 0.1 ether, alice);
-        vault.redeem(stake3, 0, 0.1 ether);
+        vault.redeem(stake3, 0, 0.1 ether, 0);
 
         // Stake after a redeem and after price drop
         oracle.setPrice(strike1 - 1, 0);
         uint48 stake4 = vault.hodlStake(strike1, 0.1 ether, alice);
 
         // Redeem stake2, which was staked during price strike + 1
-        vault.redeem(stake2, 0, 0.1 ether);
+        vault.redeem(stake2, 0, 0.1 ether, 0);
 
         // Cannot redeem stake5, which was staked at price strike - 1
         vm.expectRevert("cannot redeem");
-        vault.redeem(stake4, 0, 0.1 ether);
+        vault.redeem(stake4, 0, 0.1 ether, 0);
 
         vm.stopPrank();
     }

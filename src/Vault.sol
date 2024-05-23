@@ -388,7 +388,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
     // redeem converts a stake into the underlying tokens if the price has
     // touched the strike. The redemption can happen even if the price later
     // dips below.
-    function redeem(uint48 stakeId, uint80 roundId, uint256 amount)
+    function redeem(uint48 stakeId, uint80 roundId, uint256 amount, uint256 minOut)
         external nonReentrant returns (uint256) {
 
         HodlStake storage stk = hodlStakes[stakeId];
@@ -407,6 +407,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
         _closeOutEpoch(stk.epochId);
 
         uint256 actual = _withdraw(amount, msg.sender);
+        require(actual > minOut, "redeem slippage");
         deposits -= amount;
 
         emit Redeem(msg.sender, infos[stk.epochId].strike, stakeId, actual);
@@ -417,7 +418,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
     // redeemTokens redeems unstaked tokens if the price is currently above the
     // strike. Unlike redeemStake, the redemption cannot happen if the price
     // later dips below.
-    function redeemTokens(uint64 strike, uint256 amount)
+    function redeemTokens(uint64 strike, uint256 amount, uint256 minOut)
         external nonReentrant returns (uint256) {
 
         require(amount > 0, "zero redeem tokens");
@@ -430,6 +431,7 @@ contract Vault is ReentrancyGuard, Ownable, Pausable {
         _closeOutEpoch(epochs[strike]);
 
         uint256 actual = _withdraw(amount, msg.sender);
+        require(actual > minOut, "redeem tokens slippage");
         deposits -= amount;
 
         emit RedeemTokens(msg.sender, strike, actual);
