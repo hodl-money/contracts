@@ -17,7 +17,8 @@ contract ChainlinkOracle is IOracle {
     // Returns price with 8 decimals
     function price(uint80 roundId_) external view returns (uint256) {
         if (roundId_ == 0) {
-            ( , int256 result, , , ) = feed.latestRoundData();
+            ( , int256 result, , uint256 updatedAt, ) = feed.latestRoundData();
+            require(block.timestamp - 24 hours <= updatedAt, "stale latest price");
             if (result < 0) return 0;
             return uint256(result);
         } else {
@@ -29,11 +30,12 @@ contract ChainlinkOracle is IOracle {
 
     function timestamp(uint80 roundId_) external view returns (uint256) {
         if (roundId_ == 0) {
-            ( , , , uint256 result , ) = feed.latestRoundData();
-            return result;
+            ( , , , uint256 updatedAt, ) = feed.latestRoundData();
+            require(block.timestamp - 24 hours <= updatedAt, "stale latest timestamp");
+            return updatedAt;
         } else {
-            ( , , , uint256 result , ) = feed.getRoundData(roundId_);
-            return result;
+            ( , , , uint256 updatedAt, ) = feed.getRoundData(roundId_);
+            return updatedAt;
         }
     }
 

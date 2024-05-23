@@ -41,7 +41,7 @@ contract YTokenTest is BaseTest {
 
         vault.yMulti().safeTransferFrom(alice, bob, strike1, 0.1 ether, "");
 
-        vm.expectRevert("zero value transfer");
+        vm.expectRevert("y zero value transfer");
         yMulti.safeTransferFrom(alice, bob, strike1, 0, "");
 
         vm.expectRevert("insufficient balance");
