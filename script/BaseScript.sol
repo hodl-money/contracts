@@ -16,6 +16,8 @@ contract BaseScript is Script {
 
     address deployerAddress;
 
+    bool isMainnet = false;
+
     // Addresses that vary by network
     address weth;
     address steth;
@@ -29,6 +31,7 @@ contract BaseScript is Script {
     function init() public {
         if (eq(vm.envString("NETWORK"), "mainnet")) {
             pk = vm.envUint("MAINNET_PRIVATE_KEY");
+            isMainnet = true;
 
             steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
             wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;

@@ -50,20 +50,19 @@ contract DeployScript is BaseScript {
 
         IOracle oracle;
 
-        bool realDeploy = true;
-
-        if (realDeploy) {
+        if (isMainnet) {
             oracle = new ChainlinkOracle(ethPriceFeed);
         } else {
             FakeOracle fakeOracle = new FakeOracle();
             fakeOracle.setPrice(1999_00000000, 0);
-            oracle = IOracle(oracle);
+            oracle = IOracle(fakeOracle);
         }
 
         StETHYieldSource source = new StETHYieldSource(steth);
         vault = new Vault(address(source),
                           address(oracle),
                           deployerAddress);
+        source.transferOwnership(address(vault));
 
         Router router = new Router(address(vault),
                                    address(weth),
@@ -75,9 +74,7 @@ contract DeployScript is BaseScript {
                                    mainnet_QuoterV2,
                                    mainnet_aavePool);
 
-        source.transferOwnership(address(vault));
-
-        if (realDeploy) {
+        if (isMainnet) {
             uint256 amount = 0.1 ether;
             deployLiquidity(3800_00000000, 73044756656988589698425290750, 85935007831751276823975034880, amount);
         } else {
